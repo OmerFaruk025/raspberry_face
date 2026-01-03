@@ -11,7 +11,7 @@ MODEL_PATH = os.path.join(BASE_DIR, "lbph_model.yml")
 LABEL_PATH = os.path.join(BASE_DIR, "labels.txt")
 
 # Laptop IP'ni buraya da yazıyoruz (Diğerleriyle aynı olmalı)
-LAPTOP_IP = "192.168.1.15" 
+LAPTOP_IP = "192.168.1.47" 
 stream_url = f"http://{LAPTOP_IP}:5000/video"
 
 if not os.path.exists(MODEL_PATH):

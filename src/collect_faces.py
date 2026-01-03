@@ -9,7 +9,7 @@ MAX_SAMPLES = 25
 SAVE_DELAY = 0.5 
 
 # Laptop IP'ni buraya da giriyoruz (main.py ile aynı olmalı)
-LAPTOP_IP = "192.168.1.15" 
+LAPTOP_IP = "192.168.1.47" 
 stream_url = f"http://{LAPTOP_IP}:5000/video"
 
 def normalize_name(name: str) -> str:
