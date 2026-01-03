@@ -31,3 +31,5 @@ if __name__ == "__main__":
     print("Kanka Pi'deki kodlara bu laptopun IP'sini yazmayı unutma.")
     # host='0.0.0.0' demek, ağdaki diğer cihazlar (Pi gibi) bana ulaşabilsin demek
     app.run(host='0.0.0.0', port=5000, debug=False, threaded=True) 
+    
+    #http://localhost:5000/video
