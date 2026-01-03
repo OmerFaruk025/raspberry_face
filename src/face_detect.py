@@ -2,22 +2,22 @@ import cv2
 
 class FaceDetector:
     def __init__(self):
-        # OpenCV'nin içinde hazır gelen yüz bulma dosyasını yüklüyoruz
+        # OpenCV'nin hazır yüz bulma modelini yüklüyoruz
         self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-    def find_faces(self, img):
-        # Yüz bulmak için görüntüyü griye çevirmek performansı artırır
+    def detect_and_crop(self, img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # Yüzleri bul
+        faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
         
-        # Yüzleri ara
-        faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5, minSize=(30, 30))
+        if len(faces) == 0:
+            return None, None
+            
+        # İlk bulunan yüzü al (en büyük olanı)
+        (x, y, w, h) = faces[0]
         
-        face_results = []
-        for (x, y, w, h) in faces:
-            # Diğer kodların (collect_faces.py vb.) bozulmaması için 
-            # MediaPipe formatında bir sonuç döndürüyoruz
-            face_results.append({
-                'box': [x, y, w, h],
-                'center': (x + w//2, y + h//2)
-            })
-        return face_results
+        # Yüzü kırp ve 200x200 boyutuna getir (LBPH için standart boyuttur)
+        face_img = gray[y:y+h, x:x+w]
+        face_img = cv2.resize(face_img, (200, 200))
+        
+        return face_img, [x, y, w, h]
