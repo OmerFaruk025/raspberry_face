@@ -1,5 +1,6 @@
 import cv2
 import os
+import time  # <--- Zaman kontrolü için şart
 import numpy as np
 from pathlib import Path
 from camera import Camera
@@ -14,9 +15,6 @@ ROOT_DIR = BASE_DIR.parent
 MODEL_PATH = str(ROOT_DIR / "lbph_model.yml")
 LABEL_PATH = str(ROOT_DIR / "labels.txt")
 
-# Pi'deki standart Türkçe destekli font yolu
-FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf" 
-
 # --- BAŞLAT ---
 recognizer = cv2.face.LBPHFaceRecognizer_create()
 recognizer.read(MODEL_PATH)
@@ -28,9 +26,14 @@ with open(LABEL_PATH, "r", encoding="utf-8") as f:
         labels[int(idx)] = name
 
 detector = FaceDetector()
-cam = Camera(source=STREAM_URL) # <--- ARTIK AĞDAN ALIYOR
+cam = Camera(source=STREAM_URL)
 
-print("🚀 Pi Tanıma Sistemi Başladı...")
+# --- TAKİP DEĞİŞKENLERİ ---
+last_seen_name = ""
+last_seen_time = 0
+wait_duration = 2  # 2 saniye bekleme süresi
+
+print("🚀 Pi Tanıma Sistemi Başladı (2 Saniye Gecikmeli)...")
 
 try:
     while True:
@@ -44,12 +47,24 @@ try:
             gray_face = cv2.resize(gray_face, (200, 200))
             label_id, confidence = recognizer.predict(gray_face)
 
+            current_time = time.time()
+
             if confidence < 95:
                 name = labels.get(label_id, "Bilinmeyen")
-                print(f"✅ TANINDI: {name} (Güven: {int(confidence)})")
+                
+                # Eğer 2 saniye geçtiyse VEYA farklı birini gördüyse yazdır
+                if (current_time - last_seen_time > wait_duration) or (name != last_seen_name):
+                    print(f"✅ TANINDI: {name.upper()} (Güven: {int(confidence)})")
+                    last_seen_name = name
+                    last_seen_time = current_time
             else:
-                print("👤 Yabancı birisi var...")
+                # Tanınmayan biri olduğunda da sürekli yazmasın diye kontrol
+                if current_time - last_seen_time > wait_duration:
+                    print("👤 Yabancı birisi var...")
+                    last_seen_time = current_time
+                    last_seen_name = "Yabancı"
+
 except KeyboardInterrupt:
-    print("\n👋 Sistem kapatılıyor.")
+    print("\n👋 Eyvallah kral, sistem kapatılıyor.")
 finally:
     cam.release()
