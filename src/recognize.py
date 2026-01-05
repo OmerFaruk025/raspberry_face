@@ -1,11 +1,10 @@
 import cv2
 import os
 import time
-import csv # <--- Log yazmak için
-from datetime import datetime # <--- Tarih ve saat için
+import csv
+from datetime import datetime
 import numpy as np
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
 from camera import Camera
 from face_detect import FaceDetector
 
@@ -13,26 +12,34 @@ from face_detect import FaceDetector
 LAPTOP_IP = "192.168.1.47" 
 STREAM_URL = f"http://{LAPTOP_IP}:5000/video"
 
-BASE_DIR = Path(__file__).resolve().parent
-ROOT_DIR = BASE_DIR.parent
+# Dosyayı direkt projenin ana klasörüne (root) zorla kaydediyoruz
+ROOT_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = str(ROOT_DIR / "lbph_model.yml")
 LABEL_PATH = str(ROOT_DIR / "labels.txt")
-LOG_FILE_PATH = str(ROOT_DIR / "activity_log.csv") # <--- Log dosyasının yolu
+# Dosya adını senin istediğin gibi "hakan_fidan.csv" yaptık kral
+LOG_FILE_PATH = str(ROOT_DIR / "hakan_fidan.csv") 
 
-# --- LOG SİSTEMİ FONKSİYONU ---
+# --- LOG SİSTEMİ (GARANTİCİ VERSİYON) ---
 def log_activity(name, confidence):
-    """Tanınan kişiyi tarih ve saatle CSV dosyasına kaydeder."""
-    file_exists = os.path.isfile(LOG_FILE_PATH)
-    with open(LOG_FILE_PATH, mode='a', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        # Dosya yeni oluşturuluyorsa başlıkları ekle
-        if not file_exists:
-            writer.writerow(['Tarih', 'Saat', 'Isim', 'Guven_Skoru'])
-        
-        now = datetime.now()
-        date_str = now.strftime("%Y-%m-%d")
-        time_str = now.strftime("%H:%M:%S")
-        writer.writerow([date_str, time_str, name, int(confidence)])
+    try:
+        file_exists = os.path.isfile(LOG_FILE_PATH)
+        # 'a' (append) modu: Yoksa oluşturur, varsa sonuna ekler
+        with open(LOG_FILE_PATH, mode='a', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                writer.writerow(['Tarih', 'Saat', 'Tespit_Edilen', 'Eminlik_Orani'])
+            
+            now = datetime.now()
+            writer.writerow([
+                now.strftime("%d-%m-%Y"), 
+                now.strftime("%H:%M:%S"), 
+                name, 
+                f"%{100-int(confidence)}" # Güven skorunu yüzdeye çevirdik (opsiyonel)
+            ])
+        return True
+    except Exception as e:
+        print(f"❌ Dosya Yazma Hatası: {e}")
+        return False
 
 # --- BAŞLAT ---
 recognizer = cv2.face.LBPHFaceRecognizer_create()
@@ -51,8 +58,8 @@ last_seen_name = ""
 last_seen_time = 0
 wait_duration = 2 
 
-print(f"🚀 Pi Tanıma & Log Sistemi Başladı...")
-print(f"📝 Kayıtlar '{LOG_FILE_PATH}' dosyasına yazılıyor.")
+print(f"🕵️‍♂️ İstihbarat Kaydı Başladı...")
+print(f"📂 Dosya: {LOG_FILE_PATH}")
 
 try:
     while True:
@@ -72,18 +79,19 @@ try:
                 name = labels.get(label_id, "Bilinmeyen")
                 
                 if (current_time - last_seen_time > wait_duration) or (name != last_seen_name):
-                    print(f"✅ TANINDI: {name.upper()} - Log kaydedildi.")
-                    log_activity(name, confidence) # <--- Log kaydını yap
+                    success = log_activity(name, confidence)
+                    if success:
+                        print(f"✅ {name.upper()} tespit edildi, dosyaya işlendi.")
                     last_seen_name = name
                     last_seen_time = current_time
             else:
                 if current_time - last_seen_time > wait_duration:
-                    print("👤 Yabancı biri görüldü - Log kaydedildi.")
-                    log_activity("Yabanci", confidence)
+                    log_activity("Süpheli Şahıs", confidence)
+                    print("⚠️ Yabancı şahıs kayda alındı.")
                     last_seen_time = current_time
                     last_seen_name = "Yabancı"
 
 except KeyboardInterrupt:
-    print("\n👋 Defter kapatıldı, sistem durdu.")
+    print("\n🤐 Operasyon bitti, kayıtlar güvende.")
 finally:
     cam.release()
