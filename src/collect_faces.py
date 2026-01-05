@@ -10,12 +10,13 @@ from face_detect import FaceDetector
 # -----------------------------
 # AYARLAR & KONFİGÜRASYON
 # -----------------------------
-RUNNING_ON_PI = True  # <--- True ise: IP Yayını + Ekran Kapalı | False ise: Kamera 0 + Ekran Açık
+RUNNING_ON_PI = True  # Pi'de laptop kamerası kullanıyorsan True kalsın
 LAPTOP_IP = "192.168.1.47"
 STREAM_URL = f"http://{LAPTOP_IP}:5000/video"
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_PATH = BASE_DIR / "data"
+# ARTIK VERİLER FACES KLASÖRÜNE GİDİYOR
+DATA_PATH = BASE_DIR / "faces"
 DATA_PATH.mkdir(exist_ok=True)
 
 def get_registered_users():
@@ -31,23 +32,21 @@ def collect_data(user_name, mode="ekle"):
     
     user_dir.mkdir(parents=True, exist_ok=True)
     
-    # --- AKILLI KAYNAK VE MOD SEÇİMİ ---
+    # Akıllı kaynak ve ekran seçimi
     if RUNNING_ON_PI:
         source = STREAM_URL
         show_display = False
-        print(f"🌐 MOD: Raspberry Pi (IP Yayını: {source})")
-        print("🖥️  EKRAN: Kapalı (SSH Dostu Mod)")
+        print(f"🌐 MOD: Raspberry Pi | 🖥️ EKRAN: Kapalı")
     else:
         source = 0
         show_display = True
-        print(f"🌐 MOD: Laptop (Yerel Kamera: {source})")
-        print("🖥️  EKRAN: Açık")
+        print(f"🌐 MOD: Laptop | 🖥️ EKRAN: Açık")
     
     cam = Camera(source=source)
     detector = FaceDetector()
     
     count = 0
-    max_count = 30
+    max_count = 50 
     
     print(f"📸 Kayıt başlıyor: {user_name}")
     time.sleep(2)
@@ -68,41 +67,35 @@ def collect_data(user_name, mode="ekle"):
                 img_path = str(user_dir / f"{user_name}_{count}.jpg")
                 gray_face = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
                 
+                # Kayıt işlemi
                 _, buffer = cv2.imencode('.jpg', gray_face)
                 with open(img_path, 'wb') as f:
                     f.write(buffer)
                 
                 print(f"🚀 Fotoğraf {count}/{max_count} kaydedildi.")
 
-                # Sadece ekran açıksa pencere göster
                 if show_display:
                     cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
                     cv2.imshow("Veri Toplama Paneli", frame)
                     if cv2.waitKey(200) & 0xFF == ord('q'): break
                 else:
-                    # Pi modundaysak ekran açma, sadece bekleme yap (Hız kontrolü)
                     time.sleep(0.2)
             else:
                 if show_display:
                     cv2.imshow("Veri Toplama Paneli", frame)
                     if cv2.waitKey(1) & 0xFF == ord('q'): break
-
     finally:
         cam.release()
         if show_display:
             cv2.destroyAllWindows()
-        print(f"✅ '{user_name}' kaydı başarıyla tamamlandı.")
+        print(f"✅ '{user_name}' kaydı faces/ klasörüne tamamlandı.")
 
-# -----------------------------
-# ANA ARAYÜZ (MENU)
-# -----------------------------
 def main_menu():
     while True:
         users = get_registered_users()
         print("\n" + "="*30)
         print("🛡️  Pi-FaceID YÖNETİM PANELİ  🛡️")
         print("="*30)
-        
         if not users:
             print("⚠️ Kayıt yok. | 1-Ekle | 3-Çıkış")
         else:
@@ -110,7 +103,6 @@ def main_menu():
             print("1-Ekle | 2-Güncelle | 3-Çıkış")
         
         secim = input("\nSeçim: ").strip()
-
         if secim == "1":
             name = input("İsim: ").strip()
             if name: collect_data(name, mode="ekle")
