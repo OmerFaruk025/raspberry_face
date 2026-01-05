@@ -62,7 +62,7 @@ try:
             name = labels.get(label_id, "Bilinmeyen")
             current_time = time.time()
 
-            if match_percent >= 65:
+            if match_percent >= 60:
                 if name == last_logged_person and (current_time - last_logged_time < COOLDOWN_TIME):
                     pass 
                 else:
