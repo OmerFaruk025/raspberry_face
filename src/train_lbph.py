@@ -1,72 +1,76 @@
 import cv2
 import os
 import numpy as np
+from pathlib import Path
 
-# Dosya yollarını Pi-FaceID/src klasörüne göre ayarlıyoruz
-BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # src klasörü
-DATA_DIR = os.path.join(os.path.dirname(BASE_DIR), "data/faces") # Pi-FaceID/data/faces
+# -----------------------------
+# YOLLAR (Artık Proje Kökünde!)
+# -----------------------------
+BASE_DIR = Path(__file__).resolve().parent # src klasörü
+ROOT_DIR = BASE_DIR.parent # Proje ana klasörü
 
-faces = []
-face_labels = []
+DATA_PATH = ROOT_DIR / "data"
+# Modelleri src içinden çıkarıp ana klasöre (ROOT_DIR) alıyoruz
+MODEL_SAVE_PATH = str(ROOT_DIR / "lbph_model.yml")
+LABEL_SAVE_PATH = str(ROOT_DIR / "labels.txt")
 
-label_map = {}
-current_label = 0
+# -----------------------------
+# EĞİTİMCİ HAZIRLIĞI
+# -----------------------------
+recognizer = cv2.face.LBPHFaceRecognizer_create()
 
-if not os.path.exists(DATA_DIR):
-    print(f"❌ Hata: {DATA_DIR} klasörü bulunamadı!")
-    exit()
+def get_images_and_labels(path):
+    face_samples = []
+    ids = []
+    labels_map = {}
+    current_id = 0
 
-# Kişileri sabit sırayla al
-for person in sorted(os.listdir(DATA_DIR)):
-    person_path = os.path.join(DATA_DIR, person)
-    if not os.path.isdir(person_path):
-        continue
+    if not path.exists():
+        print(f"❌ HATA: {path} klasörü bulunamadı!")
+        return [], [], {}
 
-    label_map[current_label] = person
-    print(f"Eğitiliyor: {person} (ID: {current_label})")
+    for person_dir in path.iterdir():
+        if person_dir.is_dir():
+            name = person_dir.name
+            if name not in labels_map:
+                labels_map[name] = current_id
+                current_id += 1
+            
+            print(f"📂 '{name}' klasörü işleniyor...")
+            
+            for img_path in person_dir.glob("*"):
+                if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png']:
+                    try:
+                        # Türkçe karakterli yolları okumak için byte yöntemi
+                        img_array = np.fromfile(str(img_path), np.uint8)
+                        img = cv2.imdecode(img_array, cv2.IMREAD_GRAYSCALE)
+                        
+                        if img is not None:
+                            face_samples.append(img)
+                            ids.append(labels_map[name])
+                    except Exception as e:
+                        print(f"⚠️ Dosya okunamadı {img_path.name}: {e}")
 
-    for img_name in os.listdir(person_path):
-        img_path = os.path.join(person_path, img_name)
+    return face_samples, ids, labels_map
 
-        # IMREAD_GRAYSCALE zaten gri okur
-        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-        if img is None:
-            continue
+print("🧠 Eğitim başladı, kök dizine kayıt yapılacak...")
 
-        # Kanka burada boyutları 200x200'e sabitliyoruz ki hata payı kalmasın
-        img = cv2.resize(img, (200, 200))
-
-        faces.append(img)
-        face_labels.append(current_label)
-
-    current_label += 1
+faces, ids, labels_map = get_images_and_labels(DATA_PATH)
 
 if len(faces) == 0:
-    print("❌ Hiç yüz verisi bulunamadı! Lütfen önce collect_faces.py çalıştır.")
+    print("❌ HATA: Eğitilecek veri bulunamadı!")
     exit()
 
-# LBPH Ayarları
-recognizer = cv2.face.LBPHFaceRecognizer_create(
-    radius=1,
-    neighbors=8,
-    grid_x=8,
-    grid_y=8
-)
+# Modeli eğit
+recognizer.train(faces, np.array(ids))
 
-print("🧠 Model eğitiliyor, lütfen bekle...")
-recognizer.train(faces, np.array(face_labels))
+# Modeli ve etiketleri ANA DİZİNE kaydet
+recognizer.write(MODEL_SAVE_PATH)
 
-# Model ve etiketleri src klasörüne (main'in yanına) kaydet
-model_save_path = os.path.join(BASE_DIR, "lbph_model.yml")
-labels_save_path = os.path.join(BASE_DIR, "labels.txt")
+with open(LABEL_SAVE_PATH, "w", encoding="utf-8") as f:
+    for name, idx in labels_map.items():
+        f.write(f"{idx}:{name}\n")
 
-recognizer.save(model_save_path)
-
-# 🔥 LABEL DOSYASINI YAZ
-with open(labels_save_path, "w", encoding="utf-8") as f:
-    for label, name in label_map.items():
-        f.write(f"{label}:{name}\n")
-
-print("✅ MODEL EĞİTİLDİ VE KAYDEDİLDİ")
-print(f"Toplam kişi: {len(label_map)}")
-print(f"Toplam foto: {len(faces)}")
+print(f"✅ Başardık kral! Dosyalar ana dizine (root) kaydedildi.")
+print(f"📁 Model: {MODEL_SAVE_PATH}")
+print(f"📁 Etiketler: {LABEL_SAVE_PATH}")

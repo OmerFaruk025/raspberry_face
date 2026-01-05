@@ -3,20 +3,20 @@ import cv2
 class Camera:
     def __init__(self, source=0):
         """
-        source: 0 (yerel kamera) veya 'http://LAPTOP_IP:5000/video' (IP Stream)
+        Kanka source kısmına ya 0 (yerel kamera) 
+        ya da "http://IP:5000/video" (stream) veriyoruz.
         """
-        # Raspberry Pi'de bazen 0 çalışmazsa 1, 2 denenebilir 
-        # ama biz burayı senin laptop IP'ne göre güncelleyeceğiz.
         self.cap = cv2.VideoCapture(source)
         
-        # Buffer (tampon) ayarı - Gecikmeyi (lag) önlemek için Pi'de önemli
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        if not self.cap.isOpened():
+            print(f"❌ HATA: Kamera kaynağına ({source}) bağlanılamadı!")
 
     def read(self):
+        # Kameradan bir kare oku
         ret, frame = self.cap.read()
-        if not ret:
-            return False, None
-        return True, frame
+        return ret, frame
 
     def release(self):
+        # İş bitince dükkanı kapat
         self.cap.release()
+        cv2.destroyAllWindows()

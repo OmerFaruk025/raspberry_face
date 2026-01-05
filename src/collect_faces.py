@@ -1,131 +1,72 @@
 import cv2
 import os
-import time
-from camera import Camera  # Kanka senin sınıfa geçtik
+import time  # <--- Bekleme için lazım
+import numpy as np
+from pathlib import Path
+from camera import Camera
 from face_detect import FaceDetector
 
-BASE_DIR = "data/faces"
-MAX_SAMPLES = 25
-SAVE_DELAY = 0.5 
+# -----------------------------
+# AYARLAR & YOLLAR
+# -----------------------------
+SOURCE = 0 
+user_name = input("Kanka kimin yüzünü kaydediyoruz? (İsim gir): ").strip()
 
-# Laptop IP'ni buraya da giriyoruz (main.py ile aynı olmalı)
-LAPTOP_IP = "192.168.1.47" 
-stream_url = f"http://{LAPTOP_IP}:5000/video"
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data" / user_name
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-def normalize_name(name: str) -> str:
-    tr_map = {"ç":"c", "Ç":"c", "ğ":"g", "Ğ":"g", "ı":"i", "İ":"i", "ö":"o", "Ö":"o", "ş":"s", "Ş":"s", "ü":"u", "Ü":"u"}
-    for k, v in tr_map.items():
-        name = name.replace(k, v)
-    return name.lower().strip().replace(" ", "_")
-
-def list_people():
-    if not os.path.exists(BASE_DIR):
-        return []
-    return [d for d in os.listdir(BASE_DIR) if os.path.isdir(os.path.join(BASE_DIR, d))]
-
-os.makedirs(BASE_DIR, exist_ok=True)
-
+# -----------------------------
+# SİSTEMİ BAŞLAT
+# -----------------------------
+cam = Camera(source=SOURCE)
 detector = FaceDetector()
-# Kanka burada artık Camera sınıfını kullanıyoruz ki IP stream çalışsın
-cam = Camera(source=stream_url)
 
-print("Yüz algılanması bekleniyor...")
+count = 0
+max_count = 50 
 
-# 1️⃣ YÜZ GÖRÜLENE KADAR BEKLE
-while True:
+print(f"📸 Kayıt başlıyor! Her kare arasında 0.2 saniye bekleyeceğim.")
+print("Kanka kafanı hafif hafif sağa, sola, yukarı, aşağı oynatmayı unutma!")
+
+while count < max_count:
     ret, frame = cam.read()
     if not ret or frame is None:
         continue
 
-    # Senin face_detect içindeki yeni fonksiyonu çağırdık
-    face_img, _ = detector.detect_and_crop(frame)
+    face_img, bbox = detector.detect_and_crop(frame)
 
-    if face_img is not None:
-        break
-
-    cv2.imshow("Kamera", frame)
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        cam.release()
-        cv2.destroyAllWindows()
-        exit()
-
-# 2️⃣ MENÜ (Senin orijinal mantığın)
-people = list_people()
-options = ["Yeni kişi ekle"]
-if people:
-    options.append("Kişiyi güncelle")
-options.append("Çıkış")
-
-print("\nSeçim yap:")
-for i, opt in enumerate(options, 1):
-    print(f"{i} - {opt}")
-
-try:
-    choice = int(input(">>> "))
-    action = options[choice - 1]
-except:
-    print("❌ Geçersiz seçim")
-    exit()
-
-if action == "Çıkış":
-    exit()
-
-# 3️⃣ KİŞİ SEÇİMİ
-if action == "Yeni kişi ekle":
-    raw_name = input("Kişi adı: ")
-    name = normalize_name(raw_name)
-else:
-    print("\nGüncellenecek kişi:")
-    for i, p in enumerate(people, 1):
-        print(f"{i} - {p}")
-    try:
-        idx = int(input("Numara seç: ")) - 1
-        name = people[idx]
-    except:
-        print("❌ Geçersiz seçim")
-        exit()
-
-person_dir = os.path.join(BASE_DIR, name)
-os.makedirs(person_dir, exist_ok=True)
-
-if action == "Kişiyi güncelle":
-    for f in os.listdir(person_dir):
-        file_path = os.path.join(person_dir, f)
-        if os.path.isfile(file_path):
-            os.remove(file_path)
-
-print("\nYüzler otomatik kaydediliyor...")
-
-count = 0
-saved = 0
-last_save_time = 0
-
-# 4️⃣ OTOMATİK KAYIT
-while saved < MAX_SAMPLES:
-    ret, frame = cam.read()
-    if not ret or frame is None:
-        break
-
-    face_img, _ = detector.detect_and_crop(frame)
-
-    if face_img is not None:
+    if bbox is not None:
+        x, y, w, h = bbox
+        
+        count += 1
+        img_filename = f"{user_name}_{count}.jpg"
+        img_path = str(DATA_DIR / img_filename)
+        
         gray_face = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
-        # Eğitimle uyumlu olması için resize ekledik (200x200)
-        gray_face = cv2.resize(gray_face, (200, 200)) 
-        cv2.imshow("Yuz Kaydi", gray_face)
 
-        now = time.time()
-        if now - last_save_time >= SAVE_DELAY:
-            img_path = os.path.join(person_dir, f"{count}.jpg")
-            cv2.imwrite(img_path, gray_face)
-            count += 1
-            saved += 1
-            last_save_time = now
-            print(f"{saved}/{MAX_SAMPLES} kaydedildi")
+        # Karakter geçirmez kayıt yöntemi
+        _, buffer = cv2.imencode('.jpg', gray_face)
+        with open(img_path, 'wb') as f:
+            f.write(buffer)
+        
+        print(f"🚀 [{count}/{max_count}] Kaydedildi. Poz değiştir!")
 
-    if cv2.waitKey(1) & 0xFF == ord("q"):
+        # Ekranda geri bildirim
+        cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2) # Çekim anında mavi kutu
+        cv2.putText(frame, f"FOTO CEKILDI: {count}", (x, y-10), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
+        
+        # --- BURASI KRİTİK: BEKLEME SÜRESİ ---
+        # 0.2 saniye idealdir (Saniyede 5 fotoğraf çeker). 
+        # Eğer hala çok hızlı dersen bu sayıyı 0.5 yapabilirsin.
+        cv2.imshow("Kayıt Ekranı", frame)
+        cv2.waitKey(200) # 200 milisaniye bekle
+    else:
+        cv2.imshow("Kayıt Ekranı", frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-print("Kayıt tamamlandı.")
+print(f"\n🥳 Klasör doldu kral! Şimdi train_lbph.py'yi çalıştırabilirsin.")
 cam.release()
 cv2.destroyAllWindows()
