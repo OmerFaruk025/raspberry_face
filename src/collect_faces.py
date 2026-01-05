@@ -10,20 +10,26 @@ from face_detect import FaceDetector
 # -----------------------------
 # AYARLAR & KONFİGÜRASYON
 # -----------------------------
-RUNNING_ON_PI = True  # Pi'de laptop kamerası kullanıyorsan True kalsın
+RUNNING_ON_PI = True 
 LAPTOP_IP = "192.168.1.47"
 STREAM_URL = f"http://{LAPTOP_IP}:5000/video"
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-# ARTIK VERİLER FACES KLASÖRÜNE GİDİYOR
-DATA_PATH = BASE_DIR / "faces"
-DATA_PATH.mkdir(exist_ok=True)
+
+# --- İSTEDİĞİN KLASÖR YAPISI ---
+# data/faces/kişi_adı şeklinde olacak
+DATA_PATH = BASE_DIR / "data"
+FACES_PATH = DATA_PATH / "faces"
+
+# Klasörleri sırayla oluştur (parents=True sayesinde data yoksa onu da açar)
+FACES_PATH.mkdir(parents=True, exist_ok=True)
 
 def get_registered_users():
-    return [d.name for d in DATA_PATH.iterdir() if d.is_dir()]
+    """data/faces altındaki kişileri listeler."""
+    return [d.name for d in FACES_PATH.iterdir() if d.is_dir()]
 
 def collect_data(user_name, mode="ekle"):
-    user_dir = DATA_PATH / user_name
+    user_dir = FACES_PATH / user_name
     
     if mode == "guncelle":
         print(f"🔄 '{user_name}' verileri temizleniyor...")
@@ -32,7 +38,6 @@ def collect_data(user_name, mode="ekle"):
     
     user_dir.mkdir(parents=True, exist_ok=True)
     
-    # Akıllı kaynak ve ekran seçimi
     if RUNNING_ON_PI:
         source = STREAM_URL
         show_display = False
@@ -67,7 +72,6 @@ def collect_data(user_name, mode="ekle"):
                 img_path = str(user_dir / f"{user_name}_{count}.jpg")
                 gray_face = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
                 
-                # Kayıt işlemi
                 _, buffer = cv2.imencode('.jpg', gray_face)
                 with open(img_path, 'wb') as f:
                     f.write(buffer)
@@ -88,19 +92,19 @@ def collect_data(user_name, mode="ekle"):
         cam.release()
         if show_display:
             cv2.destroyAllWindows()
-        print(f"✅ '{user_name}' kaydı faces/ klasörüne tamamlandı.")
+        print(f"✅ İşlem tamam. Resimler burada: data/faces/{user_name}")
 
 def main_menu():
     while True:
         users = get_registered_users()
-        print("\n" + "="*30)
-        print("🛡️  Pi-FaceID YÖNETİM PANELİ  🛡️")
-        print("="*30)
+        print("\n" + "="*35)
+        print("🛡️  Pi-FaceID YÖNETİM PANELİ (v2)  🛡️")
+        print("="*35)
         if not users:
-            print("⚠️ Kayıt yok. | 1-Ekle | 3-Çıkış")
+            print("⚠️ Kayıt yok. | 1-Yeni Ekle | 3-Çıkış")
         else:
             print(f"👥 Kayıtlılar: {', '.join(users)}")
-            print("1-Ekle | 2-Güncelle | 3-Çıkış")
+            print("1-Yeni Ekle | 2-Güncelle | 3-Çıkış")
         
         secim = input("\nSeçim: ").strip()
         if secim == "1":

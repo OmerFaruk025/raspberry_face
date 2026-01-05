@@ -16,10 +16,9 @@ MODEL_PATH = str(ROOT_DIR / "lbph_model.yml")
 LABEL_PATH = str(ROOT_DIR / "labels.txt")
 LOG_FILE_PATH = str(ROOT_DIR / "hakan_fidan.csv")
 
-# --- TAKİP DEĞİŞKENLERİ ---
 last_logged_person = ""
 last_logged_time = 0
-COOLDOWN_TIME = 10 # Saniye cinsinden tekrar loglama engeli
+COOLDOWN_TIME = 10 # 10 saniye boyunca aynı kişiyi tekrar loglama
 
 def log_activity(name, percent):
     try:
@@ -30,15 +29,12 @@ def log_activity(name, percent):
                 writer.writerow(['Tarih', 'Saat', 'Isim', 'Eminlik'])
             now = datetime.now()
             writer.writerow([now.strftime("%d-%m-%Y"), now.strftime("%H:%M:%S"), name, f"%{percent}"])
-        return True
     except Exception as e:
         print(f"❌ Log Hatası: {e}")
-        return False
 
 # --- BAŞLAT ---
 recognizer = cv2.face.LBPHFaceRecognizer_create()
 recognizer.read(MODEL_PATH)
-
 labels = {}
 with open(LABEL_PATH, "r", encoding="utf-8") as f:
     for line in f:
@@ -48,7 +44,7 @@ with open(LABEL_PATH, "r", encoding="utf-8") as f:
 detector = FaceDetector()
 cam = Camera(source=STREAM_URL)
 
-print("🕵️‍♂️ Mantıklı Tanıma & Hakan Fidan Log Sistemi Aktif...")
+print("🕵️‍♂️ Mantıklı Tanıma Sistemi Aktif...")
 
 try:
     while True:
@@ -66,9 +62,7 @@ try:
             name = labels.get(label_id, "Bilinmeyen")
             current_time = time.time()
 
-            # --- MANTIK KATMANI ---
             if match_percent >= 65:
-                # 10 saniye içinde aynı kişi ise sessiz kal
                 if name == last_logged_person and (current_time - last_logged_time < COOLDOWN_TIME):
                     pass 
                 else:
@@ -77,16 +71,15 @@ try:
                     last_logged_person = name
                     last_logged_time = current_time
                     
-                    # Girişten sonra sistemi 3 saniye dinlendir (Fizik kuralı)
-                    print("⏱️  Operasyonel bekleme: 3 saniye...")
-                    time.sleep(3)
+                    print("⏱️  3 saniye bekleniyor...")
+                    time.sleep(3) # Fiziksel bekleme
             
             elif 30 <= match_percent < 65:
-                print(f"🔍 Emin olunuyor... ({name} %{match_percent})")
+                print(f"🔍 Emin olunuyor... ({name})")
         
-        time.sleep(0.05) # CPU dostu döngü
+        time.sleep(0.05)
 
 except KeyboardInterrupt:
-    print("\n👋 Sistem kapatıldı.")
+    print("\n👋 Kapatıldı.")
 finally:
     cam.release()
