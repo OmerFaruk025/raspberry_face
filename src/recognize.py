@@ -1,8 +1,11 @@
 import cv2
 import os
-import time  # <--- Zaman kontrolü için şart
+import time
+import csv # <--- Log yazmak için
+from datetime import datetime # <--- Tarih ve saat için
 import numpy as np
 from pathlib import Path
+from PIL import Image, ImageDraw, ImageFont
 from camera import Camera
 from face_detect import FaceDetector
 
@@ -14,6 +17,22 @@ BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
 MODEL_PATH = str(ROOT_DIR / "lbph_model.yml")
 LABEL_PATH = str(ROOT_DIR / "labels.txt")
+LOG_FILE_PATH = str(ROOT_DIR / "activity_log.csv") # <--- Log dosyasının yolu
+
+# --- LOG SİSTEMİ FONKSİYONU ---
+def log_activity(name, confidence):
+    """Tanınan kişiyi tarih ve saatle CSV dosyasına kaydeder."""
+    file_exists = os.path.isfile(LOG_FILE_PATH)
+    with open(LOG_FILE_PATH, mode='a', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        # Dosya yeni oluşturuluyorsa başlıkları ekle
+        if not file_exists:
+            writer.writerow(['Tarih', 'Saat', 'Isim', 'Guven_Skoru'])
+        
+        now = datetime.now()
+        date_str = now.strftime("%Y-%m-%d")
+        time_str = now.strftime("%H:%M:%S")
+        writer.writerow([date_str, time_str, name, int(confidence)])
 
 # --- BAŞLAT ---
 recognizer = cv2.face.LBPHFaceRecognizer_create()
@@ -28,12 +47,12 @@ with open(LABEL_PATH, "r", encoding="utf-8") as f:
 detector = FaceDetector()
 cam = Camera(source=STREAM_URL)
 
-# --- TAKİP DEĞİŞKENLERİ ---
 last_seen_name = ""
 last_seen_time = 0
-wait_duration = 2  # 2 saniye bekleme süresi
+wait_duration = 2 
 
-print("🚀 Pi Tanıma Sistemi Başladı (2 Saniye Gecikmeli)...")
+print(f"🚀 Pi Tanıma & Log Sistemi Başladı...")
+print(f"📝 Kayıtlar '{LOG_FILE_PATH}' dosyasına yazılıyor.")
 
 try:
     while True:
@@ -52,19 +71,19 @@ try:
             if confidence < 95:
                 name = labels.get(label_id, "Bilinmeyen")
                 
-                # Eğer 2 saniye geçtiyse VEYA farklı birini gördüyse yazdır
                 if (current_time - last_seen_time > wait_duration) or (name != last_seen_name):
-                    print(f"✅ TANINDI: {name.upper()} (Güven: {int(confidence)})")
+                    print(f"✅ TANINDI: {name.upper()} - Log kaydedildi.")
+                    log_activity(name, confidence) # <--- Log kaydını yap
                     last_seen_name = name
                     last_seen_time = current_time
             else:
-                # Tanınmayan biri olduğunda da sürekli yazmasın diye kontrol
                 if current_time - last_seen_time > wait_duration:
-                    print("👤 Yabancı birisi var...")
+                    print("👤 Yabancı biri görüldü - Log kaydedildi.")
+                    log_activity("Yabanci", confidence)
                     last_seen_time = current_time
                     last_seen_name = "Yabancı"
 
 except KeyboardInterrupt:
-    print("\n👋 Eyvallah kral, sistem kapatılıyor.")
+    print("\n👋 Defter kapatıldı, sistem durdu.")
 finally:
     cam.release()
