@@ -12,33 +12,30 @@ from face_detect import FaceDetector
 LAPTOP_IP = "192.168.1.47" 
 STREAM_URL = f"http://{LAPTOP_IP}:5000/video"
 
-# Dosyayı direkt projenin ana klasörüne (root) zorla kaydediyoruz
 ROOT_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = str(ROOT_DIR / "lbph_model.yml")
 LABEL_PATH = str(ROOT_DIR / "labels.txt")
-# Dosya adını senin istediğin gibi "hakan_fidan.csv" yaptık kral
-LOG_FILE_PATH = str(ROOT_DIR / "hakan_fidan.csv") 
+LOG_FILE_PATH = str(ROOT_DIR / "hakan_fidan.csv")
 
-# --- LOG SİSTEMİ (GARANTİCİ VERSİYON) ---
-def log_activity(name, confidence):
+# --- LOG SİSTEMİ ---
+def log_activity(name, percent):
     try:
         file_exists = os.path.isfile(LOG_FILE_PATH)
-        # 'a' (append) modu: Yoksa oluşturur, varsa sonuna ekler
         with open(LOG_FILE_PATH, mode='a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             if not file_exists:
-                writer.writerow(['Tarih', 'Saat', 'Tespit_Edilen', 'Eminlik_Orani'])
+                writer.writerow(['Tarih', 'Saat', 'Isim', 'Eminlik_Yuzdesi'])
             
             now = datetime.now()
             writer.writerow([
                 now.strftime("%d-%m-%Y"), 
                 now.strftime("%H:%M:%S"), 
                 name, 
-                f"%{100-int(confidence)}" # Güven skorunu yüzdeye çevirdik (opsiyonel)
+                f"%{percent}"
             ])
         return True
     except Exception as e:
-        print(f"❌ Dosya Yazma Hatası: {e}")
+        print(f"❌ Log Hatası: {e}")
         return False
 
 # --- BAŞLAT ---
@@ -54,12 +51,11 @@ with open(LABEL_PATH, "r", encoding="utf-8") as f:
 detector = FaceDetector()
 cam = Camera(source=STREAM_URL)
 
-last_seen_name = ""
-last_seen_time = 0
-wait_duration = 2 
+last_logged_name = ""
+last_logged_time = 0
+log_wait_duration = 10  # Aynı kişi için 10 saniyede bir log tutsun ki dosya şişmesin
 
-print(f"🕵️‍♂️ İstihbarat Kaydı Başladı...")
-print(f"📂 Dosya: {LOG_FILE_PATH}")
+print("🕵️‍♂️ Gelişmiş Tanıma & Analiz Sistemi Aktif...")
 
 try:
     while True:
@@ -73,25 +69,36 @@ try:
             gray_face = cv2.resize(gray_face, (200, 200))
             label_id, confidence = recognizer.predict(gray_face)
 
+            # Güven skorunu yüzdeye çevir (LBPH'da düşük confidence = yüksek başarı)
+            # 0 çok iyi, 100 çok kötü. Biz bunu 100 üzerinden ters çeviriyoruz.
+            match_percent = int(max(0, 100 - confidence))
+            name = labels.get(label_id, "Bilinmeyen")
+            
             current_time = time.time()
 
-            if confidence < 95:
-                name = labels.get(label_id, "Bilinmeyen")
+            # --- MANTIK KATMANI ---
+            if match_percent >= 65:
+                # KESİN TANIMA: %65 ve üzeri
+                print(f"✅ GİRİŞ YAPILDI: {name.upper()} (%{match_percent})")
                 
-                if (current_time - last_seen_time > wait_duration) or (name != last_seen_name):
-                    success = log_activity(name, confidence)
-                    if success:
-                        print(f"✅ {name.upper()} tespit edildi, dosyaya işlendi.")
-                    last_seen_name = name
-                    last_seen_time = current_time
+                # Sadece farklı biriyse veya üzerinden 10 saniye geçtiyse logla
+                if (name != last_logged_name) or (current_time - last_logged_time > log_wait_duration):
+                    log_activity(name, match_percent)
+                    last_logged_name = name
+                    last_logged_time = current_time
+            
+            elif 30 <= match_percent < 65:
+                # ŞÜPHE AŞAMASI: %30-%64 arası
+                print(f"🔍 Kişiden emin olunuyor... ({name} - %{match_percent})")
+                # Log yazmıyoruz, sadece terminalde takip ediyoruz
+            
             else:
-                if current_time - last_seen_time > wait_duration:
-                    log_activity("Süpheli Şahıs", confidence)
-                    print("⚠️ Yabancı şahıs kayda alındı.")
-                    last_seen_time = current_time
-                    last_seen_name = "Yabancı"
+                # %30 ALTI: Tanınmıyor
+                if current_time - last_logged_time > 5:
+                    print("👤 Yabancı şahıs analizi yapılıyor...")
+                    last_logged_time = current_time
 
 except KeyboardInterrupt:
-    print("\n🤐 Operasyon bitti, kayıtlar güvende.")
+    print("\n👋 Sistem kapatıldı.")
 finally:
     cam.release()
