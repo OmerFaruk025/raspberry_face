@@ -18,7 +18,7 @@ LOG_FILE_PATH = str(ROOT_DIR / "hakan_fidan.csv")
 
 last_logged_person = ""
 last_logged_time = 0
-COOLDOWN_TIME = 10 # 10 saniye boyunca aynı kişiyi tekrar loglama
+COOLDOWN_TIME = 6
 
 def log_activity(name, percent):
     try:
@@ -44,12 +44,13 @@ with open(LABEL_PATH, "r", encoding="utf-8") as f:
 detector = FaceDetector()
 cam = Camera(source=STREAM_URL)
 
-print("🕵️‍♂️ Mantıklı Tanıma Sistemi Aktif...")
+print("Tanımlanma Aktif")
 
 try:
     while True:
         ret, frame = cam.read()
-        if not ret: continue
+        if not ret: 
+            continue
 
         face_img, bbox = detector.detect_and_crop(frame)
 

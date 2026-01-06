@@ -9,7 +9,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent # src
 ROOT_DIR = BASE_DIR.parent # Proje ana klasörü
 
-# BURASI KRİTİK: data/faces içine bakmalı!
+# BURASI KRİTİK: data/faces içine bakması gerekiyor boş ise dolduracak.
 DATA_PATH = ROOT_DIR / "data" / "faces"
 MODEL_SAVE_PATH = str(ROOT_DIR / "lbph_model.yml")
 LABEL_SAVE_PATH = str(ROOT_DIR / "labels.txt")
@@ -68,4 +68,4 @@ with open(LABEL_SAVE_PATH, "w", encoding="utf-8") as f:
     for name, idx in labels_map.items():
         f.write(f"{idx}:{name}\n")
 
-print(f"✅ Başardık kral! Model '{ROOT_DIR}' içine kaydedildi.")
+print(f"✅ Eğitim Başarılı Model '{ROOT_DIR}' içine kaydedildi.")

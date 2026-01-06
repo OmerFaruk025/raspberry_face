@@ -4,7 +4,7 @@ class Camera:
     def __init__(self, source=0):
         """
         Kanka source kısmına ya 0 (yerel kamera) 
-        ya da "http://IP:5000/video" (stream) veriyoruz.
+        ya da "http://IP:5000/video" (stream) verdik.
         """
         self.cap = cv2.VideoCapture(source)
         
@@ -17,6 +17,6 @@ class Camera:
         return ret, frame
 
     def release(self):
-        # İş bitince dükkanı kapat
+        #kapat
         self.cap.release()
         cv2.destroyAllWindows()

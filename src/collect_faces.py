@@ -16,8 +16,8 @@ STREAM_URL = f"http://{LAPTOP_IP}:5000/video"
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# --- İSTEDİĞİN KLASÖR YAPISI ---
-# data/faces/kişi_adı şeklinde olacak
+# --- KLASÖR YAPISI ---
+# data/faces/kişi_adı şeklinde 
 DATA_PATH = BASE_DIR / "data"
 FACES_PATH = DATA_PATH / "faces"
 
@@ -76,7 +76,7 @@ def collect_data(user_name, mode="ekle"):
                 with open(img_path, 'wb') as f:
                     f.write(buffer)
                 
-                print(f"🚀 Fotoğraf {count}/{max_count} kaydedildi.")
+                print(f"Fotoğraf {count}/{max_count} kaydedildi.")
 
                 if show_display:
                     cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
@@ -92,18 +92,18 @@ def collect_data(user_name, mode="ekle"):
         cam.release()
         if show_display:
             cv2.destroyAllWindows()
-        print(f"✅ İşlem tamam. Resimler burada: data/faces/{user_name}")
+        print(f"✅ İşlem tamamlandı. Resimler burada: data/faces/{user_name}")
 
 def main_menu():
     while True:
         users = get_registered_users()
         print("\n" + "="*35)
-        print("🛡️  Pi-FaceID YÖNETİM PANELİ (v2)  🛡️")
+        print("🛡️ Pi-FaceID YÖNETİM PANELİ 🛡️")
         print("="*35)
         if not users:
             print("⚠️ Kayıt yok. | 1-Yeni Ekle | 3-Çıkış")
         else:
-            print(f"👥 Kayıtlılar: {', '.join(users)}")
+            print(f"👥 Kayıtlı Kişiler: {', '.join(users)}")
             print("1-Yeni Ekle | 2-Güncelle | 3-Çıkış")
         
         secim = input("\nSeçim: ").strip()
@@ -117,7 +117,6 @@ def main_menu():
             if u_secim.isdigit() and int(u_secim) <= len(users):
                 collect_data(users[int(u_secim)-1], mode="guncelle")
         elif secim == "3":
-            print("Görüşürüz kral! 👋")
             break
 
 if __name__ == "__main__":

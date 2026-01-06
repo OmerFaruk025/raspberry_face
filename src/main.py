@@ -5,7 +5,7 @@ from collections import deque
 
 # Kanka buraya laptopunun IP'sini yazıyoruz
 # Eğer lokal kamera kullanacaksan sadece 0 yazabilirsin
-LAPTOP_IP = "192.168.1.47" # Bunu kendi laptop IP'nle değiştir kanka
+LAPTOP_IP = "192.168.1.47" 
 stream_url = f"http://{LAPTOP_IP}:5000/video"
 
 # Kamera nesnesi (Artık IP stream'e hazır)
@@ -30,7 +30,6 @@ while True:
     h, w, _ = frame.shape
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     
-    # Kanka burada yeni eklediğimiz detect metodunu kullanıyoruz
     bbox = detector.detect(rgb, frame.shape)
 
     if bbox:
