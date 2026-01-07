@@ -76,7 +76,7 @@ try:
                     time.sleep(3) # Fiziksel bekleme
             
             elif 30 <= match_percent < 65:
-                print(f"🔍 Emin olunuyor... ({name})")
+                print(f"🔍 {name.upper()}Kişisinden Emin olunuyor: %{match_percent}")
         
         time.sleep(0.05)
 
