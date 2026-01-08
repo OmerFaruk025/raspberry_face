@@ -2,28 +2,23 @@ import cv2
 
 class Camera:
     def __init__(self, source=0):
-        """
-        Kanka PiCam V2.1'e erişmek için cv2.CAP_V4L2 ekledik.
-        Bu, yeni nesil Pi'lerde OpenCV'nin kamerayı yakalamasını sağlar.
-        """
-        # --- BURASI KRİTİK DEĞİŞİKLİK ---
+        # CAP_V4L2 ile hızlı bağlanıyoruz
         self.cap = cv2.VideoCapture(source, cv2.CAP_V4L2)
         
-        # Çözünürlük ayarları (PiCam V2.1 için 640x480 idealdir)
+        # Kare boyutunu 480p yapalım (Yüz tanıma için en ideal ve hızlı boyut)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         
-        if not self.cap.isOpened():
-            print(f"❌ HATA: PiCam donanımına (source:{source}) ulaşılamadı!")
-            print("İpucu: Kablo yönünü ve 'libcamera-hello' komutunu kontrol et kanka.")
+        # FPS'i 30'a sabitleyelim ki Pi nefes alsın
+        self.cap.set(cv2.CAP_PROP_FPS, 30)
 
     def read(self):
-        # Kameradan bir kare oku
         ret, frame = self.cap.read()
-        return ret, frame
+        if ret:
+            # Görüntüyü hafifçe keskinleştirmek tanımayı hızlandırır (opsiyonel)
+            return True, frame
+        return False, None
 
     def release(self):
-        # Kamerayı serbest bırak
-        if self.cap.isOpened():
-            self.cap.release()
+        self.cap.release()
         cv2.destroyAllWindows()
