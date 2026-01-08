@@ -1,24 +1,32 @@
 import cv2
+import time
 
 class Camera:
     def __init__(self, source=0):
-        # CAP_V4L2 ile hızlı bağlanıyoruz
+        # CAP_V4L2 yerine bazen default (0) daha stabil kalabilir, 
+        # ama Pi üzerinde V4L2 en hızlısıdır.
         self.cap = cv2.VideoCapture(source, cv2.CAP_V4L2)
         
-        # Kare boyutunu 480p yapalım (Yüz tanıma için en ideal ve hızlı boyut)
+        # Kameranın kendine gelmesi için 2 saniye mola (Kritik!)
+        print("⏳ Kamera uyandiriliyor...")
+        time.sleep(2)
+        
+        # Çözünürlüğü sabitle
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        
-        # FPS'i 30'a sabitleyelim ki Pi nefes alsın
-        self.cap.set(cv2.CAP_PROP_FPS, 30)
+        # Buffer boyutunu 1 yapıyoruz ki eski kare birikmesin (Lag önleyici)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
     def read(self):
-        ret, frame = self.cap.read()
-        if ret:
-            # Görüntüyü hafifçe keskinleştirmek tanımayı hızlandırır (opsiyonel)
-            return True, frame
+        # Kameradan veri gelene kadar 3 kez dene
+        for _ in range(3):
+            ret, frame = self.cap.read()
+            if ret and frame is not None:
+                return ret, frame
+            time.sleep(0.1)
         return False, None
 
     def release(self):
-        self.cap.release()
+        if self.cap.isOpened():
+            self.cap.release()
         cv2.destroyAllWindows()
