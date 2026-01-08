@@ -8,8 +8,8 @@ from camera import Camera
 from face_detect import FaceDetector
 
 # --- AYARLAR ---
-LAPTOP_IP = "10.169.168.246" 
-STREAM_URL = f"http://{LAPTOP_IP}:5000/video"
+# Laptop IP bağımlılığı kaldırıldı, yerel kamera (0) aktif!
+CAMERA_SOURCE = 0
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = str(ROOT_DIR / "lbph_model.yml")
@@ -18,7 +18,7 @@ LOG_FILE_PATH = str(ROOT_DIR / "hakan_fidan.csv")
 
 last_logged_person = ""
 last_logged_time = 0
-COOLDOWN_TIME = 6
+COOLDOWN_TIME = 6 # Aynı kişi için 6 saniye bekleme
 
 def log_activity(name, percent):
     try:
@@ -35,6 +35,7 @@ def log_activity(name, percent):
 # --- BAŞLAT ---
 recognizer = cv2.face.LBPHFaceRecognizer_create()
 recognizer.read(MODEL_PATH)
+
 labels = {}
 with open(LABEL_PATH, "r", encoding="utf-8") as f:
     for line in f:
@@ -42,9 +43,10 @@ with open(LABEL_PATH, "r", encoding="utf-8") as f:
         labels[int(idx)] = name
 
 detector = FaceDetector()
-cam = Camera(source=STREAM_URL)
 
-print("Tanımlanma Aktif")
+# Doğrudan PiCam V2.1 üzerinden başlatıyoruz
+print(f"🕵️‍♂️ Tanımlama Aktif... (Kaynak: PiCam)")
+cam = Camera(source=CAMERA_SOURCE)
 
 try:
     while True:
@@ -63,6 +65,7 @@ try:
             name = labels.get(label_id, "Bilinmeyen")
             current_time = time.time()
 
+            # --- MANTIK KATMANI ---
             if match_percent >= 60:
                 if name == last_logged_person and (current_time - last_logged_time < COOLDOWN_TIME):
                     pass 
@@ -73,14 +76,16 @@ try:
                     last_logged_time = current_time
                     
                     print("⏱️  3 saniye bekleniyor...")
-                    time.sleep(3) # Fiziksel bekleme
+                    time.sleep(3) # Fiziksel bekleme (Saniyede 5 giriş engeli)
             
-            elif 30 <= match_percent < 65:
-                print(f"🔍 {name.upper()}Kişisinden Emin olunuyor: %{match_percent}")
+            elif 30 <= match_percent < 60:
+                # İstediğin % raporlaması burada kanka
+                print(f"🔍 {name.upper()} kişisinden emin olunuyor: %{match_percent}")
         
+        # CPU'yu korumak için kısa mola
         time.sleep(0.05)
 
 except KeyboardInterrupt:
-    print("\n👋 Kapatıldı.")
+    print("\n👋 Sistem operasyonel olarak kapatıldı.")
 finally:
     cam.release()

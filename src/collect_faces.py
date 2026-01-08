@@ -10,18 +10,17 @@ from face_detect import FaceDetector
 # -----------------------------
 # AYARLAR & KONFİGÜRASYON
 # -----------------------------
-RUNNING_ON_PI = True 
-LAPTOP_IP = "192.168.1.47"
-STREAM_URL = f"http://{LAPTOP_IP}:5000/video"
+# Laptop bağımlılığı bitti! Artık her zaman yerel donanım (0) kullanılıyor.
+CAMERA_SOURCE = 0 
+
+# SSH üzerinden bağlanıyorsan False kalmalı, monitör takılıysa True yapabilirsin.
+SHOW_DISPLAY = False 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-# --- KLASÖR YAPISI ---
-# data/faces/kişi_adı şeklinde 
 DATA_PATH = BASE_DIR / "data"
 FACES_PATH = DATA_PATH / "faces"
 
-# Klasörleri sırayla oluştur (parents=True sayesinde data yoksa onu da açar)
+# Klasörleri otomatik oluştur
 FACES_PATH.mkdir(parents=True, exist_ok=True)
 
 def get_registered_users():
@@ -38,29 +37,22 @@ def collect_data(user_name, mode="ekle"):
     
     user_dir.mkdir(parents=True, exist_ok=True)
     
-    if RUNNING_ON_PI:
-        source = STREAM_URL
-        show_display = False
-        print(f"🌐 MOD: Raspberry Pi | 🖥️ EKRAN: Kapalı")
-    else:
-        source = 0
-        show_display = True
-        print(f"🌐 MOD: Laptop | 🖥️ EKRAN: Açık")
-    
-    cam = Camera(source=source)
+    # Doğrudan PiCam donanımına bağlanıyoruz
+    print(f"📸 PiCam V2.1 Hazırlanıyor... (Source: {CAMERA_SOURCE})")
+    cam = Camera(source=CAMERA_SOURCE)
     detector = FaceDetector()
     
     count = 0
     max_count = 50 
     
-    print(f"📸 Kayıt başlıyor: {user_name}")
+    print(f"🚀 Kayıt başlıyor: {user_name}")
     time.sleep(2)
 
     try:
         while count < max_count:
             ret, frame = cam.read()
             if not ret or frame is None:
-                print("⚠️ Görüntü kesildi!")
+                print("⚠️ Kameradan görüntü alınamadı!")
                 break
 
             face_img, bbox = detector.detect_and_crop(frame)
@@ -72,33 +64,35 @@ def collect_data(user_name, mode="ekle"):
                 img_path = str(user_dir / f"{user_name}_{count}.jpg")
                 gray_face = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
                 
+                # Resim kaydetme (Türkçe karakter dostu)
                 _, buffer = cv2.imencode('.jpg', gray_face)
                 with open(img_path, 'wb') as f:
                     f.write(buffer)
                 
                 print(f"Fotoğraf {count}/{max_count} kaydedildi.")
 
-                if show_display:
+                if SHOW_DISPLAY:
                     cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 0), 2)
                     cv2.imshow("Veri Toplama Paneli", frame)
                     if cv2.waitKey(200) & 0xFF == ord('q'): break
                 else:
+                    # SSH modunda sistemi yormamak ve hız kontrolü için mola
                     time.sleep(0.2)
             else:
-                if show_display:
+                if SHOW_DISPLAY:
                     cv2.imshow("Veri Toplama Paneli", frame)
                     if cv2.waitKey(1) & 0xFF == ord('q'): break
     finally:
         cam.release()
-        if show_display:
+        if SHOW_DISPLAY:
             cv2.destroyAllWindows()
-        print(f"✅ İşlem tamamlandı. Resimler burada: data/faces/{user_name}")
+        print(f"✅ İşlem tamamlandı. Resimler: data/faces/{user_name}")
 
 def main_menu():
     while True:
         users = get_registered_users()
         print("\n" + "="*35)
-        print("🛡️ Pi-FaceID YÖNETİM PANELİ 🛡️")
+        print("🛡️  Pi-FaceID YÖNETİM PANELİ (PiCam) 🛡️")
         print("="*35)
         if not users:
             print("⚠️ Kayıt yok. | 1-Yeni Ekle | 3-Çıkış")
@@ -117,6 +111,7 @@ def main_menu():
             if u_secim.isdigit() and int(u_secim) <= len(users):
                 collect_data(users[int(u_secim)-1], mode="guncelle")
         elif secim == "3":
+            print("Görüşürüz kral! 👋")
             break
 
 if __name__ == "__main__":
