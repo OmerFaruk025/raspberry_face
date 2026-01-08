@@ -43,7 +43,7 @@ def collect_data(user_name, mode="ekle"):
     
     print(f"🚀 Kayit basliyor: {user_name}")
     print("💡 İpucu: rpicam-still her karede netleme yapabilir, sabit dur kanka!")
-    time.sleep(2)
+    time.sleep(1)
 
     try:
         while count < max_count:

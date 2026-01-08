@@ -93,7 +93,7 @@ try:
             current_time = time.time()
 
             # 5. Adim: Karar Mekanizmasi
-            if match_percent >= 45: # Esik degeri (Threshold)
+            if match_percent >= 40: # Esik degeri (Threshold)
                 if name == last_logged_person and (current_time - last_logged_time < COOLDOWN_TIME):
                     # Cooldown aktifse sadece terminalde guncelleme yap, loglama
                     print(f"ℹ️ {name.upper()} hala kamerada... (%{match_percent})", end="\r")
