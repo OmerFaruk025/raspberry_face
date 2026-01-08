@@ -8,16 +8,13 @@ from face_detect import FaceDetector
 # -----------------------------
 # AYARLAR
 # -----------------------------
-LAPTOP_IP = "192.168.1.47"
-STREAM_URL = f"http://{LAPTOP_IP}:5000/video"
+MATCH_THRESHOLD = 60        # Kabul eşiği
+COOLDOWN_SECONDS = 3        # Tanıma sonrası bekleme
+SCORE_BUFFER_SIZE = 5       # Ortalama skor için frame sayısı
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = ROOT_DIR / "lbph_model.yml"
 LABEL_PATH = ROOT_DIR / "labels.txt"
-
-MATCH_THRESHOLD = 60        # Kabul eşiği
-COOLDOWN_SECONDS = 3        # Kabul sonrası bekleme
-SCORE_BUFFER_SIZE = 5       # Ortalama için kaç frame
 
 # -----------------------------
 # MODEL & LABEL
@@ -31,47 +28,50 @@ with open(LABEL_PATH, "r", encoding="utf-8") as f:
         idx, name = line.strip().split(":")
         labels[int(idx)] = name
 
-print("✅ Model yüklendi | Kişi sayısı:", len(labels))
+print(f"✅ Model yüklendi | Kişi sayısı: {len(labels)}")
 
 # -----------------------------
 # NESNELER
 # -----------------------------
+cam = Camera()                  # 🔥 Direkt PiCam
 detector = FaceDetector()
-cam = Camera(source=STREAM_URL)
 
 score_buffer = deque(maxlen=SCORE_BUFFER_SIZE)
 last_recognized_time = 0
+face_active = False             # yüz ekranda mı?
 
-print("📸 Kamera başladı (SSH uyumlu)")
+print("📸 Kamera hazır, tanıma aktif")
 
 # -----------------------------
 # ANA DÖNGÜ
 # -----------------------------
 try:
     while True:
-        ret, frame = cam.read()
-        if not ret or frame is None:
-            print("⚠️ Kamera görüntüsü yok")
+        now = time.time()
+
+        # ---- COOLDOWN (TANIDIKTAN SONRA HİÇBİR ŞEY YAPMA) ----
+        if now - last_recognized_time < COOLDOWN_SECONDS:
             time.sleep(0.2)
             continue
 
-        now = time.time()
-
-        # ---- COOLDOWN ----
-        if now - last_recognized_time < COOLDOWN_SECONDS:
-            print("⏳ Cooldown aktif – yüz okunmuyor")
+        ret, frame = cam.read()
+        if not ret or frame is None:
             time.sleep(0.2)
             continue
 
         face_img, bbox = detector.detect_and_crop(frame)
 
+        # ---- YÜZ YOK ----
         if face_img is None:
+            face_active = False
             score_buffer.clear()
-            print("👤 Yüz YOK")
             time.sleep(0.1)
             continue
 
-        print("👤 Yüz VAR")
+        # ---- YÜZ İLK KEZ ALGILANDI ----
+        if not face_active:
+            print("👤 Yüz algılandı")
+            face_active = True
 
         # ---- TANIMA ----
         gray = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
@@ -87,18 +87,25 @@ try:
         # ---- KARAR ----
         if avg_score >= MATCH_THRESHOLD:
             print(
-                f"✅ KABUL → {name.upper()} | "
-                f"Anlık: %{match_percent} | "
-                f"Ortalama: %{round(avg_score,1)}"
+                f"✅ TANINDI → {name.upper()} | "
+                f"Benzerlik: %{round(avg_score, 1)}"
             )
-            last_recognized_time = now
+            last_recognized_time = time.time()
+            face_active = False
             score_buffer.clear()
+
         else:
             print(
-                f"❌ RED | Tahmin: {name} | "
-                f"Anlık: %{match_percent} | "
-                f"Ortalama: %{round(avg_score,1)}"
+                f"❌ Tanınmadı | Tahmin: {name} | "
+                f"Benzerlik: %{round(avg_score, 1)}"
             )
+
+        # -----------------------------
+        # MONITOR TAKARSAN AÇABİLİRSİN
+        # -----------------------------
+        # cv2.imshow("Face Recognition", frame)
+        # if cv2.waitKey(1) & 0xFF == 27:
+        #     break
 
         time.sleep(0.1)
 
@@ -107,3 +114,4 @@ except KeyboardInterrupt:
 
 finally:
     cam.release()
+    # cv2.destroyAllWindows()
