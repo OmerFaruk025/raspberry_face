@@ -7,19 +7,20 @@ class FaceDetector:
 
     def detect_and_crop(self, frame):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
-        # scaleFactor'ü 1.05 yaptık (Hassas tarama)
-        # minNeighbors'u 3 yaptık (Hızlı algılama)
+
         faces = self.face_cascade.detectMultiScale(
-            gray, 
-            scaleFactor=1.05, 
-            minNeighbors=3, 
+            gray,
+            scaleFactor=1.3,
+            minNeighbors=5,
             minSize=(30, 30)
         )
 
-        if len(faces) > 0:
-            (x, y, w, h) = faces[0]
-            face_img = frame[y:y+h, x:x+w]
-            return face_img, (x, y, w, h)
-        
-        return None, None
+        if len(faces) == 0:
+            return None, None
+
+        (x, y, w, h) = sorted(
+            faces, key=lambda f: f[2]*f[3], reverse=True
+        )[0]
+
+        face_img = frame[y:y+h, x:x+w]
+        return face_img, (x, y, w, h)
