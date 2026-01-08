@@ -67,4 +67,4 @@ try:
 except KeyboardInterrupt:
     print("\n👋 Kapatildi.")
 finally:
-    cam.release()
+    cam.release() 
