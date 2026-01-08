@@ -8,16 +8,14 @@ from camera import Camera
 from face_detect import FaceDetector
 
 # --- AYARLAR ---
-CAMERA_SOURCE = 0
-
 ROOT_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = str(ROOT_DIR / "lbph_model.yml")
 LABEL_PATH = str(ROOT_DIR / "labels.txt")
 LOG_FILE_PATH = str(ROOT_DIR / "hakan_fidan.csv")
 
+COOLDOWN_TIME = 6 
 last_logged_person = ""
 last_logged_time = 0
-COOLDOWN_TIME = 6 # Aynı kişi için 6 saniye soğuma süresi
 
 def log_activity(name, percent):
     try:
@@ -31,33 +29,31 @@ def log_activity(name, percent):
     except Exception as e:
         print(f"❌ Log Hatasi: {e}")
 
-# --- BAŞLAT ---
+# --- MODEL YUKLE ---
 recognizer = cv2.face.LBPHFaceRecognizer_create()
-
-# Model kontrolü
 if not os.path.exists(MODEL_PATH):
-    print("❌ HATA: lbph_model.yml bulunamadi! Once egitim yapmalisin kanka.")
+    print("❌ HATA: Model bulunamadi! Once egitim yap kanka.")
     exit()
 
 recognizer.read(MODEL_PATH)
-
 labels = {}
 with open(LABEL_PATH, "r", encoding="utf-8") as f:
     for line in f:
-        idx, name = line.strip().split(":")
-        labels[int(idx)] = name
+        parts = line.strip().split(":")
+        if len(parts) == 2:
+            idx, name = parts
+            labels[int(idx)] = name
 
 detector = FaceDetector()
-print(f"🕵️‍♂️ Tanimlama Aktif... (Kaynak: PiCam V2.1)")
-cam = Camera(source=CAMERA_SOURCE)
+cam = Camera() # Yeni nesil rpicam kamerasını başlatır
+
+print("🕵️‍♂️ Tanimlama Aktif... (rpicam-apps modu)")
 
 try:
     while True:
-        # --- KRİTİK: TAMPON TEMİZLİĞİ ---
-        # PiCam'in arkada biriktirdiği kareleri atla, en tazesini al
-        for _ in range(5):
-            cam.cap.grab()
-            
+        # --- DİKKAT: cam.cap.grab() SATIRI SİLİNDİ ---
+        # rpicam-still zaten her seferinde taze kare çeker.
+        
         ret, frame = cam.read()
         if not ret or frame is None: 
             continue
@@ -69,28 +65,21 @@ try:
             gray_face = cv2.resize(gray_face, (200, 200))
             label_id, confidence = recognizer.predict(gray_face)
             
+            # LBPH'de confidence (mesafe) düştükçe benzerlik artar
             match_percent = int(max(0, 100 - confidence))
             name = labels.get(label_id, "Bilinmeyen")
             current_time = time.time()
 
-            # --- MANTIK KATMANI ---
-            if match_percent >= 60:
-                if name == last_logged_person and (current_time - last_logged_time < COOLDOWN_TIME):
-                    # Cooldown süresi dolmadıysa ekrana bir şey basma, sessizce bekle
-                    pass 
-                else:
-                    print(f"✅ GIRIS YAPILDI: {name.upper()} (%{match_percent})")
+            if match_percent >= 45: # Eşik değerini (threshold) biraz esnettim
+                if not (name == last_logged_person and (current_time - last_logged_time < COOLDOWN_TIME)):
+                    print(f"✅ GIRIS: {name.upper()} (%{match_percent})")
                     log_activity(name, match_percent)
                     last_logged_person = name
                     last_logged_time = current_time
-                    
-                    print("⏱️  3 saniye bekleniyor...")
-                    time.sleep(3) # Fiziksel gecikme
-            
-            elif 30 <= match_percent < 60:
-                print(f"🔍 {name.upper()} kisisinden emin olunuyor: %{match_percent}")
+            else:
+                print(f"🔍 Tanimlanamayan yüz (Eminlik: %{match_percent})")
         
-        # İşlemciyi (CPU) nefes aldırmak için minik mola
+        # rpicam-still biraz yavaş olduğu için buradaki sleep'i küçülttük
         time.sleep(0.01)
 
 except KeyboardInterrupt:
