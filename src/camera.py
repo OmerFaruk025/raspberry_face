@@ -3,25 +3,27 @@ import cv2
 class Camera:
     def __init__(self, source=0):
         """
-        Kanka artık laptopu aradan çıkardık. 
-        source=0 doğrudan Pi'ye takılı olan PiCam V2.1'i temsil eder.
+        Kanka PiCam V2.1'e erişmek için cv2.CAP_V4L2 ekledik.
+        Bu, yeni nesil Pi'lerde OpenCV'nin kamerayı yakalamasını sağlar.
         """
-        self.cap = cv2.VideoCapture(source)
+        # --- BURASI KRİTİK DEĞİŞİKLİK ---
+        self.cap = cv2.VideoCapture(source, cv2.CAP_V4L2)
         
-        # PiCam V2.1 için ideal çözünürlük ayarları (Pi'yi yormaz)
+        # Çözünürlük ayarları (PiCam V2.1 için 640x480 idealdir)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         
         if not self.cap.isOpened():
             print(f"❌ HATA: PiCam donanımına (source:{source}) ulaşılamadı!")
-            print("İpucu: 'libcamera-hello' ile kamerayı test etmeyi unutma kanka.")
+            print("İpucu: Kablo yönünü ve 'libcamera-hello' komutunu kontrol et kanka.")
 
     def read(self):
-        # Kameradan anlık kareyi çek
+        # Kameradan bir kare oku
         ret, frame = self.cap.read()
         return ret, frame
 
     def release(self):
-        # Kamerayı serbest bırak ve pencereleri kapat
-        self.cap.release()
+        # Kamerayı serbest bırak
+        if self.cap.isOpened():
+            self.cap.release()
         cv2.destroyAllWindows()
