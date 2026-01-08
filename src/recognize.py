@@ -8,7 +8,7 @@ from camera import Camera
 from face_detect import FaceDetector
 
 # --- AYARLAR ---
-LAPTOP_IP = "192.168.1.47" 
+LAPTOP_IP = "10.169.168.246" 
 STREAM_URL = f"http://{LAPTOP_IP}:5000/video"
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
