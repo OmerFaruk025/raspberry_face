@@ -1,3 +1,5 @@
+print("🔥 recognize.py başladı")
+
 import cv2
 import time
 import csv
