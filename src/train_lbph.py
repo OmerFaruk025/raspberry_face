@@ -1,71 +1,90 @@
 import cv2
-import os
 import numpy as np
 from pathlib import Path
 
 # -----------------------------
 # YOLLAR
 # -----------------------------
-BASE_DIR = Path(__file__).resolve().parent # src
-ROOT_DIR = BASE_DIR.parent # Proje ana klasörü
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_PATH = BASE_DIR / "data" / "faces"
+MODEL_PATH = BASE_DIR / "lbph_model.yml"
+LABEL_PATH = BASE_DIR / "labels.txt"
 
-# BURASI KRİTİK: data/faces içine bakması gerekiyor boş ise dolduracak.
-DATA_PATH = ROOT_DIR / "data" / "faces"
-MODEL_SAVE_PATH = str(ROOT_DIR / "lbph_model.yml")
-LABEL_SAVE_PATH = str(ROOT_DIR / "labels.txt")
+# -----------------------------
+# LBPH OPTİMİZE
+# -----------------------------
+recognizer = cv2.face.LBPHFaceRecognizer_create(
+    radius=2,
+    neighbors=16,
+    grid_x=8,
+    grid_y=8
+)
 
-recognizer = cv2.face.LBPHFaceRecognizer_create()
+# -----------------------------
+# CLAHE
+# -----------------------------
+clahe = cv2.createCLAHE(
+    clipLimit=2.0,
+    tileGridSize=(8, 8)
+)
 
-def get_images_and_labels(path):
-    face_samples = []
-    ids = []
-    labels_map = {}
+# -----------------------------
+# DATA OKUMA
+# -----------------------------
+def load_faces(path):
+    faces = []
+    labels = []
+    label_map = {}
     current_id = 0
 
     if not path.exists():
-        print(f"❌ HATA: {path} yolu bulunamadı! Önce yüz kaydı yapmalısın.")
+        print("❌ data/faces yok")
         return [], [], {}
 
-    # data/faces altındaki klasörleri (kişileri) döner
     for person_dir in path.iterdir():
-        if person_dir.is_dir():
-            name = person_dir.name
-            if name not in labels_map:
-                labels_map[name] = current_id
-                current_id += 1
-            
-            print(f"📂 '{name}' klasörü işleniyor...")
-            
-            # Kişi klasörünün içindeki resimleri bulur
-            for img_path in person_dir.glob("*"):
-                if img_path.suffix.lower() in ['.jpg', '.jpeg', '.png']:
-                    try:
-                        img_array = np.fromfile(str(img_path), np.uint8)
-                        img = cv2.imdecode(img_array, cv2.IMREAD_GRAYSCALE)
-                        
-                        if img is not None:
-                            face_samples.append(img)
-                            ids.append(labels_map[name])
-                    except Exception as e:
-                        print(f"⚠️ Dosya okunamadı {img_path.name}: {e}")
+        if not person_dir.is_dir():
+            continue
 
-    return face_samples, ids, labels_map
+        name = person_dir.name
+        label_map[name] = current_id
+        print(f"📂 {name} işleniyor...")
+        
+        for img_path in person_dir.glob("*.jpg"):
+            img = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE)
+            if img is None:
+                continue
 
-print(f"🧠 Eğitim başladı. Kaynak: {DATA_PATH}")
+            h, w = img.shape
+            if w < 120 or h < 120:
+                continue  # küçük / hatalı crop
 
-faces, ids, labels_map = get_images_and_labels(DATA_PATH)
+            img = cv2.resize(img, (200, 200))
+            img = clahe.apply(img)
 
-if len(faces) == 0:
-    print("❌ HATA: Eğitilecek veri bulunamadı! Klasörleri kontrol et.")
-    print(f"Bakılan yol: {DATA_PATH}")
+            faces.append(img)
+            labels.append(current_id)
+
+        current_id += 1
+
+    return faces, labels, label_map
+
+# -----------------------------
+# TRAIN
+# -----------------------------
+print("🧠 Eğitim başlıyor...")
+faces, labels, label_map = load_faces(DATA_PATH)
+
+if not faces:
+    print("❌ Eğitim verisi yok")
     exit()
 
-# Eğit ve kaydet
-recognizer.train(faces, np.array(ids))
-recognizer.write(MODEL_SAVE_PATH)
+recognizer.train(faces, np.array(labels))
+recognizer.save(str(MODEL_PATH))
 
-with open(LABEL_SAVE_PATH, "w", encoding="utf-8") as f:
-    for name, idx in labels_map.items():
+with open(LABEL_PATH, "w", encoding="utf-8") as f:
+    for name, idx in label_map.items():
         f.write(f"{idx}:{name}\n")
 
-print(f"✅ Eğitim Başarılı Model '{ROOT_DIR}' içine kaydedildi.")
+print("✅ Eğitim tamamlandı")
+print(f"👤 Kişi sayısı: {len(label_map)}")
+print(f"📦 Model: {MODEL_PATH}")
