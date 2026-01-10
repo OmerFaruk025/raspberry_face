@@ -13,31 +13,33 @@ class FaceDetector:
         eye_path = None
 
         for p in base_paths:
-            if os.path.exists(p + "haarcascade_frontalface_default.xml"):
+            if os.path.exists(p + "haarcascade_frontalface_default.xml") and \
+               os.path.exists(p + "haarcascade_eye.xml"):
                 face_path = p + "haarcascade_frontalface_default.xml"
-                eye_path = p + "haarcascade_eye.xml"
+                eye_path  = p + "haarcascade_eye.xml"
                 break
 
         if not face_path or not eye_path:
             raise RuntimeError("❌ Haar cascade bulunamadı")
 
         self.face_cascade = cv2.CascadeClassifier(face_path)
-        self.eye_cascade = cv2.CascadeClassifier(eye_path)
+        self.eye_cascade  = cv2.CascadeClassifier(eye_path)
 
         print(f"✅ Haar yüklendi → {face_path}")
 
-        # Daha stabil değerler
-        self.scaleFactor = 1.15
+        # ---- STABİL AYARLAR ----
+        self.scaleFactor  = 1.15
         self.minNeighbors = 5
-        self.minSize = (100, 100)
+        self.minSize      = (100, 100)
 
     def detect_and_crop(self, frame, return_bbox=False):
         """
         return_bbox:
-            False -> sadece face_img döner
+            False -> face_img
             True  -> face_img, (x, y, w, h)
         """
 
+        # ---- FRAME YOK ----
         if frame is None:
             return (None, None) if return_bbox else None
 
@@ -56,11 +58,11 @@ class FaceDetector:
         if len(faces) == 0:
             return (None, None) if return_bbox else None
 
-        # En büyük yüzü öne al
+        # En büyük yüz öncelikli
         faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
 
         for (x, y, w, h) in faces:
-            # --- GÖZ DOĞRULAMA ---
+            # ---- GÖZ DOĞRULAMA ----
             face_gray = gray[y:y+h, x:x+w]
 
             eyes = self.eye_cascade.detectMultiScale(
@@ -71,12 +73,12 @@ class FaceDetector:
             )
 
             if len(eyes) < 2:
-                continue  # ❌ yanlış yüz / yarım yüz
+                continue  # ❌ yarım yüz / yanlış crop
 
-            # --- AKILLI CROP ---
-            expand_up    = int(h * 0.08)
-            expand_down  = int(h * 0.30)
-            expand_lr    = int(w * 0.10)
+            # ---- AKILLI & STABİL CROP ----
+            expand_up   = int(h * 0.08)
+            expand_down = int(h * 0.30)
+            expand_lr   = int(w * 0.10)
 
             x2 = max(0, x - expand_lr)
             y2 = max(0, y - expand_up)
@@ -94,4 +96,5 @@ class FaceDetector:
             else:
                 return face_img
 
+        # ---- HİÇBİR YÜZ GEÇEMEDİ ----
         return (None, None) if return_bbox else None
