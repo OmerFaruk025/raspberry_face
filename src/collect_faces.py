@@ -1,6 +1,7 @@
 import cv2
 import time
 import shutil
+import math
 from pathlib import Path
 from camera import Camera
 from face_detect import FaceDetector
@@ -13,15 +14,23 @@ DATA_PATH = BASE_DIR / "data" / "faces"
 DATA_PATH.mkdir(parents=True, exist_ok=True)
 
 MAX_COUNT = 50
+FACE_SIZE = 200
 
-# -----------------------------
-# YARDIMCI FONKSİYONLAR
+MIN_FACE_SIZE = 90          # çok küçük yüzleri alma
+ASPECT_MIN = 0.75           # en/boy oranı
+ASPECT_MAX = 1.3
+CENTER_MARGIN = 0.35        # frame kenarına çok yakın yüzleri alma
+BBOX_JUMP_LIMIT = 40        # bbox çok zıplıyorsa alma
+MOVE_THRESHOLD = 12         # aynı poz spamını engelle
+
 # -----------------------------
 def get_registered_users():
     return [d.name for d in DATA_PATH.iterdir() if d.is_dir()]
 
 # -----------------------------
-# ANA KAYIT FONKSİYONU
+def bbox_distance(b1, b2):
+    return math.hypot(b1[0] - b2[0], b1[1] - b2[1])
+
 # -----------------------------
 def collect_data(user_name, mode="ekle"):
     user_dir = DATA_PATH / user_name
@@ -32,10 +41,12 @@ def collect_data(user_name, mode="ekle"):
 
     user_dir.mkdir(parents=True, exist_ok=True)
 
-    cam = Camera()               # PiCam
-    detector = FaceDetector()    # Haar + filtreli
+    cam = Camera()
+    detector = FaceDetector()
 
     count = 0
+    last_bbox = None
+
     print(f"📸 Kayıt başlıyor: {user_name}")
     time.sleep(1)
 
@@ -46,6 +57,7 @@ def collect_data(user_name, mode="ekle"):
                 time.sleep(0.03)
                 continue
 
+            h_frame, w_frame = frame.shape[:2]
             face_img, bbox = detector.detect_and_crop(frame)
 
             if bbox is None:
@@ -54,12 +66,41 @@ def collect_data(user_name, mode="ekle"):
 
             x, y, w, h = bbox
 
-            # --- EK GÜVENLİK ---
-            if w < 80 or h < 80:
+            # --- BOYUT ---
+            if w < MIN_FACE_SIZE or h < MIN_FACE_SIZE:
                 continue
 
+            # --- ORAN ---
+            aspect = w / h
+            if not (ASPECT_MIN <= aspect <= ASPECT_MAX):
+                continue
+
+            # --- MERKEZ ---
+            cx = x + w / 2
+            cy = y + h / 2
+            if (
+                cx < w_frame * CENTER_MARGIN or
+                cx > w_frame * (1 - CENTER_MARGIN) or
+                cy < h_frame * CENTER_MARGIN or
+                cy > h_frame * (1 - CENTER_MARGIN)
+            ):
+                continue
+
+            # --- BBOX ZIPLAMA ---
+            if last_bbox:
+                if bbox_distance(bbox, last_bbox) > BBOX_JUMP_LIMIT:
+                    last_bbox = bbox
+                    continue
+
+            # --- AYNI POZ ---
+            if last_bbox:
+                if bbox_distance(bbox, last_bbox) < MOVE_THRESHOLD:
+                    continue
+
+            last_bbox = bbox
+
             gray_face = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
-            gray_face = cv2.resize(gray_face, (200, 200))
+            gray_face = cv2.resize(gray_face, (FACE_SIZE, FACE_SIZE))
 
             count += 1
             img_path = user_dir / f"{user_name}_{count}.jpg"
@@ -67,15 +108,12 @@ def collect_data(user_name, mode="ekle"):
 
             print(f"{count}/{MAX_COUNT} kaydedildi")
 
-            # Aynı kareyi tekrar almamak için kısa bekleme
-            time.sleep(0.25)
+            time.sleep(0.3)
 
     finally:
         cam.release()
         print(f"✅ Kayıt tamamlandı → data/faces/{user_name}")
 
-# -----------------------------
-# MENÜ
 # -----------------------------
 def main_menu():
     while True:
