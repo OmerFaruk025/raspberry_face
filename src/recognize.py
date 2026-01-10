@@ -8,9 +8,9 @@ from face_detect import FaceDetector
 # -----------------------------
 # AYARLAR
 # -----------------------------
-MATCH_THRESHOLD = 60
-COOLDOWN_SECONDS = 3
-SCORE_BUFFER_SIZE = 5
+MATCH_THRESHOLD = 60        # Kabul eşiği
+COOLDOWN_SECONDS = 3        # Tanıma sonrası bekleme
+SCORE_BUFFER_SIZE = 5       # Ortalama skor için frame sayısı
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = ROOT_DIR / "lbph_model.yml"
@@ -39,7 +39,6 @@ detector = FaceDetector()
 score_buffer = deque(maxlen=SCORE_BUFFER_SIZE)
 last_recognized_time = 0
 face_active = False
-last_print_time = 0   # spam print kontrolü
 
 print("📸 Kamera hazır, tanıma aktif")
 
@@ -52,36 +51,37 @@ try:
 
         # ---- COOLDOWN ----
         if now - last_recognized_time < COOLDOWN_SECONDS:
-            time.sleep(0.15)
+            time.sleep(0.2)
             continue
 
         ret, frame = cam.read()
         if not ret or frame is None:
-            time.sleep(0.15)
+            time.sleep(0.2)
             continue
 
-        face_img, bbox = detector.detect_and_crop(frame)
+        # 🔴 KRİTİK NOKTA – HATAYI ÇÖZEN SATIR
+        result = detector.detect_and_crop(frame, return_bbox=True)
 
-        # ---- YÜZ YOK ----
-        if face_img is None:
-            if face_active:
-                score_buffer.clear()
-                face_active = False
+        # FaceDetector hiçbir şey bulamazsa None döner
+        if result is None or result[0] is None:
+            face_active = False
+            score_buffer.clear()
             time.sleep(0.1)
             continue
 
-        # ---- YÜZ İLK KEZ ----
+        face_img, bbox = result
+
+        # ---- YÜZ İLK KEZ ALGILANDI ----
         if not face_active:
             print("👤 Yüz algılandı")
             face_active = True
-            score_buffer.clear()
 
         # ---- TANIMA ----
         gray = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
         gray = cv2.resize(gray, (200, 200))
 
-        label_id, distance = recognizer.predict(gray)
-        match_percent = max(0, 100 - distance)
+        label_id, confidence = recognizer.predict(gray)
+        match_percent = max(0, int(100 - confidence))
         name = labels.get(label_id, "Bilinmeyen")
 
         score_buffer.append(match_percent)
@@ -96,17 +96,13 @@ try:
             last_recognized_time = time.time()
             face_active = False
             score_buffer.clear()
-
         else:
-            # spam engelle (0.7 sn'de 1 yaz)
-            if now - last_print_time > 0.7:
-                print(
-                    f"❌ Tanınmadı | Tahmin: {name} | "
-                    f"Benzerlik: %{round(avg_score, 1)}"
-                )
-                last_print_time = now
+            print(
+                f"❌ Tanınmadı | Tahmin: {name} | "
+                f"Benzerlik: %{round(avg_score, 1)}"
+            )
 
-        time.sleep(0.08)
+        time.sleep(0.1)
 
 except KeyboardInterrupt:
     print("\n👋 Sistem kapatıldı")
