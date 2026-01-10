@@ -58,7 +58,10 @@ def collect_data(user_name, mode="ekle"):
                 continue
 
             h_frame, w_frame = frame.shape[:2]
-            face_img, bbox = detector.detect_and_crop(frame)
+            result = detector.detect_and_crop(frame)
+            if result is None:
+                continue  # yüz yok, bu frame’i geç
+            face_img, bbox = result
 
             if bbox is None:
                 time.sleep(0.03)
