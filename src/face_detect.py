@@ -32,16 +32,14 @@ class FaceDetector:
         self.minNeighbors = 5
         self.minSize      = (100, 100)
 
-    def detect_and_crop(self, frame, return_bbox=False):
+    def detect_and_crop(self, frame, return_bbox=True):
         """
-        return_bbox:
-            False -> face_img
-            True  -> face_img, (x, y, w, h)
+        HER ZAMAN:
+        (None, None) veya (face_img, bbox)
         """
 
-        # ---- FRAME YOK ----
         if frame is None:
-            return (None, None) if return_bbox else None
+            return None, None
 
         h_img, w_img = frame.shape[:2]
 
@@ -56,13 +54,12 @@ class FaceDetector:
         )
 
         if len(faces) == 0:
-            return (None, None) if return_bbox else None
+            return None, None
 
-        # En büyük yüz öncelikli
+        # En büyük yüz
         faces = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)
 
         for (x, y, w, h) in faces:
-            # ---- GÖZ DOĞRULAMA ----
             face_gray = gray[y:y+h, x:x+w]
 
             eyes = self.eye_cascade.detectMultiScale(
@@ -73,9 +70,9 @@ class FaceDetector:
             )
 
             if len(eyes) < 2:
-                continue  # ❌ yarım yüz / yanlış crop
+                continue
 
-            # ---- AKILLI & STABİL CROP ----
+            # ---- AKILLI CROP ----
             expand_up   = int(h * 0.08)
             expand_down = int(h * 0.30)
             expand_lr   = int(w * 0.10)
@@ -91,10 +88,6 @@ class FaceDetector:
             if face_img.size == 0:
                 continue
 
-            if return_bbox:
-                return face_img, (x2, y2, w2, h2)
-            else:
-                return face_img
+            return face_img, (x2, y2, w2, h2)
 
-        # ---- HİÇBİR YÜZ GEÇEMEDİ ----
-        return (None, None) if return_bbox else None
+        return None, None
