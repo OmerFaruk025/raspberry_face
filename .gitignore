@@ -2,3 +2,10 @@ venv/
 .venv/
 data/
 __pycache__/
+# Model & label çıktıları
+*.yml
+labels.txt
+
+# Log / CSV / JPG dosyaları
+*.csv
+*.JPG
