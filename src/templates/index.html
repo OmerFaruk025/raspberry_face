@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Face Recognition Control</title>
+    <link rel="stylesheet" href="{{ url_for('static_file', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>📸 Face Recognition Control</h1>
+        <div class="status-container">
+            <span>Durum:</span>
+            <span id="status" class="{{ 'running' if status=='Çalışıyor' else 'stopped' }}">{{ status }}</span>
+        </div>
+        <div class="button-container">
+            <button id="startBtn" onclick="sendCommand('start')">Başlat</button>
+            <button id="stopBtn" onclick="sendCommand('stop')">Durdur</button>
+        </div>
+        <div class="log-container" id="log">
+            <p>Log alanı</p>
+        </div>
+    </div>
+    <script src="{{ url_for('static_file', filename='script.js') }}"></script>
+</body>
+</html>

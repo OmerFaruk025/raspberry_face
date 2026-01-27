@@ -5,6 +5,7 @@ from collections import deque
 from pathlib import Path
 from camera import Camera
 from face_detect import FaceDetector
+import threading
 
 # -----------------------------
 # AYARLAR
@@ -45,8 +46,19 @@ face_active = False
 print("📸 Kamera hazır, tanıma aktif")
 
 # -----------------------------
+# RUNNING FLAG (WEB PANEL KONTROLÜ İÇİN)
+RUNNING = True
+RUNNING_LOCK = threading.Lock()  # thread-safe kontrol
+
+# -----------------------------
 try:
     while True:
+        with RUNNING_LOCK:
+            if not RUNNING:
+                # Sistem durdurulmuşsa beklemede kal
+                time.sleep(0.1)
+                continue
+
         now = time.time()
 
         if now - last_recognized_time < COOLDOWN_SECONDS:
