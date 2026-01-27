@@ -1,36 +1,34 @@
 import cv2
 import numpy as np
 from pathlib import Path
+from face_detect import FaceDetector
 
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
 
-DATA_PATH = ROOT_DIR / "data" / "faces"
+DATA_PATH  = ROOT_DIR / "data" / "faces"
 MODEL_PATH = ROOT_DIR / "lbph_model.yml"
 LABEL_PATH = ROOT_DIR / "labels.txt"
 
 MAX_IMAGES_PER_PERSON = 30
 IMG_SIZE = (200, 200)
 
+# 🔥 DAHA STABİL
 recognizer = cv2.face.LBPHFaceRecognizer_create(
-    radius=2,
+    radius=1,
     neighbors=8,
     grid_x=8,
     grid_y=8
 )
 
-def is_face_quality_ok(img):
-    h, w = img.shape
-    if h < 120 or w < 120:
-        return False
-    return True
+detector = FaceDetector()
 
 faces = []
 labels = []
 label_map = {}
 current_id = 0
 
-print("🧠 Train başladı (optimize mod)")
+print("🧠 Train başladı (FACE-DETECT uyumlu)")
 
 for person_dir in DATA_PATH.iterdir():
     if not person_dir.is_dir():
@@ -46,22 +44,26 @@ for person_dir in DATA_PATH.iterdir():
         if count >= MAX_IMAGES_PER_PERSON:
             break
 
-        img = cv2.imread(str(img_path), cv2.IMREAD_GRAYSCALE)
-        if img is None:
+        frame = cv2.imread(str(img_path))
+        if frame is None:
             continue
 
-        if not is_face_quality_ok(img):
+        face_img, _ = detector.detect_and_crop(frame)
+        if face_img is None:
             continue
 
-        img = cv2.resize(img, IMG_SIZE)
+        gray = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.resize(gray, IMG_SIZE, interpolation=cv2.INTER_AREA)
+        gray = cv2.GaussianBlur(gray, (3, 3), 0)
+        gray = cv2.equalizeHist(gray)
 
-        faces.append(img)
+        faces.append(gray)
         labels.append(current_id)
         count += 1
 
     current_id += 1
 
-if len(faces) == 0:
+if not faces:
     print("❌ Eğitilecek veri yok")
     exit()
 
@@ -72,4 +74,8 @@ with open(LABEL_PATH, "w", encoding="utf-8") as f:
     for idx, name in label_map.items():
         f.write(f"{idx}:{name}\n")
 
-print(f"✅ Train tamamlandı | Kişi: {len(label_map)} | Toplam yüz: {len(faces)}")
+print(
+    f"✅ Train tamamlandı | "
+    f"Kişi: {len(label_map)} | "
+    f"Toplam yüz: {len(faces)}"
+)

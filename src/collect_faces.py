@@ -13,7 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_PATH = BASE_DIR / "data" / "faces"
 DATA_PATH.mkdir(parents=True, exist_ok=True)
 
-MAX_COUNT = 30              # 🔽 50 → 30
+MAX_COUNT = 30
 FACE_SIZE = 200
 
 MIN_FACE_SIZE = 90
@@ -23,8 +23,7 @@ CENTER_MARGIN = 0.35
 BBOX_JUMP_LIMIT = 40
 MOVE_THRESHOLD = 12
 
-PADDING_RATIO = 0.20        # ✅ %20 padding
-JPEG_QUALITY = 98           # ✅ daha kaliteli kayıt
+PADDING_RATIO = 0.18   # LBPH için ideal
 
 # -----------------------------
 def get_registered_users():
@@ -57,7 +56,6 @@ def collect_data(user_name, mode="ekle"):
         while count < MAX_COUNT:
             ret, frame = cam.read()
             if not ret or frame is None:
-                time.sleep(0.03)
                 continue
 
             h_frame, w_frame = frame.shape[:2]
@@ -92,22 +90,17 @@ def collect_data(user_name, mode="ekle"):
             ):
                 continue
 
-            # --- BBOX ZIPLAMA ---
+            # --- ZIPLAMA ---
             if last_bbox:
-                if bbox_distance(bbox, last_bbox) > BBOX_JUMP_LIMIT:
-                    last_bbox = bbox
-                    continue
-
-            # --- AYNI POZ ---
-            if last_bbox:
-                if bbox_distance(bbox, last_bbox) < MOVE_THRESHOLD:
+                dist = bbox_distance(bbox, last_bbox)
+                if dist > BBOX_JUMP_LIMIT or dist < MOVE_THRESHOLD:
                     continue
 
             last_bbox = bbox
 
-            # =============================
-            # ✅ KALİTELİ CROP (BUG SAFE)
-            # =============================
+            # -------------------------
+            # DOĞRU CROP (SAFE)
+            # -------------------------
             pad_w = int(w * PADDING_RATIO)
             pad_h = int(h * PADDING_RATIO)
 
@@ -116,36 +109,30 @@ def collect_data(user_name, mode="ekle"):
             x2 = min(w_frame, x + w + pad_w)
             y2 = min(h_frame, y + h + pad_h)
 
-            face_img = frame[y1:y2, x1:x2]
-
-            if face_img.size == 0:
+            face = frame[y1:y2, x1:x2]
+            if face.size == 0:
                 continue
 
-            # --- GRAYSCALE ---
-            gray_face = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
+            # -------------------------
+            # LBPH UYUMLU PREPROCESS
+            # -------------------------
+            gray = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
 
-            # --- RESIZE (DAHA NET) ---
-            gray_face = cv2.resize(
-                gray_face,
+            gray = cv2.resize(
+                gray,
                 (FACE_SIZE, FACE_SIZE),
-                interpolation=cv2.INTER_CUBIC
+                interpolation=cv2.INTER_AREA
             )
 
-            # --- HAFİF SHARPEN ---
-            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-            gray_face = cv2.filter2D(gray_face, -1, kernel)
+            # hafif blur → noise giderir ama yüzü bozmaz
+            gray = cv2.GaussianBlur(gray, (3, 3), 0)
 
             count += 1
             img_path = user_dir / f"{user_name}_{count}.jpg"
-
-            cv2.imwrite(
-                str(img_path),
-                gray_face,
-                [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY]
-            )
+            cv2.imwrite(str(img_path), gray)
 
             print(f"{count}/{MAX_COUNT} kaydedildi")
-            time.sleep(0.3)
+            time.sleep(0.35)
 
     finally:
         cam.release()
@@ -173,7 +160,7 @@ def main_menu():
         if secim == "1":
             name = input("İsim: ").strip()
             if name:
-                collect_data(name, mode="ekle")
+                collect_data(name)
 
         elif secim == "2" and users:
             idx = input("No: ").strip()
