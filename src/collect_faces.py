@@ -23,8 +23,6 @@ CENTER_MARGIN = 0.35
 BBOX_JUMP_LIMIT = 40
 MOVE_THRESHOLD = 12
 
-PADDING_RATIO = 0.18   # LBPH için ideal
-
 # -----------------------------
 def get_registered_users():
     return [d.name for d in DATA_PATH.iterdir() if d.is_dir()]
@@ -60,26 +58,22 @@ def collect_data(user_name, mode="ekle"):
 
             h_frame, w_frame = frame.shape[:2]
 
-            result = detector.detect_and_crop(frame)
-            if result is None:
-                continue
-
-            _, bbox = result
+            face_img, bbox = detector.detect_and_crop(frame)
             if bbox is None:
                 continue
 
             x, y, w, h = bbox
 
-            # --- BOYUT ---
+            # -------------------------
+            # TEMEL KALİTE KONTROLLERİ
+            # -------------------------
             if w < MIN_FACE_SIZE or h < MIN_FACE_SIZE:
                 continue
 
-            # --- ORAN ---
             aspect = w / h
             if not (ASPECT_MIN <= aspect <= ASPECT_MAX):
                 continue
 
-            # --- MERKEZ ---
             cx = x + w / 2
             cy = y + h / 2
             if (
@@ -90,7 +84,6 @@ def collect_data(user_name, mode="ekle"):
             ):
                 continue
 
-            # --- ZIPLAMA ---
             if last_bbox:
                 dist = bbox_distance(bbox, last_bbox)
                 if dist > BBOX_JUMP_LIMIT or dist < MOVE_THRESHOLD:
@@ -99,15 +92,18 @@ def collect_data(user_name, mode="ekle"):
             last_bbox = bbox
 
             # -------------------------
-            # DOĞRU CROP (SAFE)
+            # 🎯 İNSAN YÜZÜNE UYGUN FINAL CROP
+            # Çene az, alın + saç fazla
             # -------------------------
-            pad_w = int(w * PADDING_RATIO)
-            pad_h = int(h * PADDING_RATIO)
+            pad_left  = int(w * 0.12)
+            pad_right = int(w * 0.12)
+            pad_up    = int(h * 0.25)   # kafa üstü
+            pad_down  = int(h * 0.08)   # çene altı
 
-            x1 = max(0, x - pad_w)
-            y1 = max(0, y - pad_h)
-            x2 = min(w_frame, x + w + pad_w)
-            y2 = min(h_frame, y + h + pad_h)
+            x1 = max(0, x - pad_left)
+            y1 = max(0, y - pad_up)
+            x2 = min(w_frame, x + w + pad_right)
+            y2 = min(h_frame, y + h + pad_down)
 
             face = frame[y1:y2, x1:x2]
             if face.size == 0:
@@ -117,14 +113,7 @@ def collect_data(user_name, mode="ekle"):
             # LBPH UYUMLU PREPROCESS
             # -------------------------
             gray = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
-
-            gray = cv2.resize(
-                gray,
-                (FACE_SIZE, FACE_SIZE),
-                interpolation=cv2.INTER_AREA
-            )
-
-            # hafif blur → noise giderir ama yüzü bozmaz
+            gray = cv2.resize(gray, (FACE_SIZE, FACE_SIZE), interpolation=cv2.INTER_AREA)
             gray = cv2.GaussianBlur(gray, (3, 3), 0)
 
             count += 1
