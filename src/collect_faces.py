@@ -13,15 +13,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_PATH = BASE_DIR / "data" / "faces"
 DATA_PATH.mkdir(parents=True, exist_ok=True)
 
-MAX_COUNT = 50
+MAX_COUNT = 30              # 🔽 50 → 30
 FACE_SIZE = 200
 
-MIN_FACE_SIZE = 90          # çok küçük yüzleri alma
-ASPECT_MIN = 0.75           # en/boy oranı
+MIN_FACE_SIZE = 90
+ASPECT_MIN = 0.75
 ASPECT_MAX = 1.3
-CENTER_MARGIN = 0.35        # frame kenarına çok yakın yüzleri alma
-BBOX_JUMP_LIMIT = 40        # bbox çok zıplıyorsa alma
-MOVE_THRESHOLD = 12         # aynı poz spamını engelle
+CENTER_MARGIN = 0.35
+BBOX_JUMP_LIMIT = 40
+MOVE_THRESHOLD = 12
+
+PADDING_RATIO = 0.20        # ✅ %20 padding
+JPEG_QUALITY = 98           # ✅ daha kaliteli kayıt
 
 # -----------------------------
 def get_registered_users():
@@ -58,13 +61,13 @@ def collect_data(user_name, mode="ekle"):
                 continue
 
             h_frame, w_frame = frame.shape[:2]
+
             result = detector.detect_and_crop(frame)
             if result is None:
-                continue  # yüz yok, bu frame’i geç
-            face_img, bbox = result
+                continue
 
+            _, bbox = result
             if bbox is None:
-                time.sleep(0.03)
                 continue
 
             x, y, w, h = bbox
@@ -102,15 +105,46 @@ def collect_data(user_name, mode="ekle"):
 
             last_bbox = bbox
 
+            # =============================
+            # ✅ KALİTELİ CROP (BUG SAFE)
+            # =============================
+            pad_w = int(w * PADDING_RATIO)
+            pad_h = int(h * PADDING_RATIO)
+
+            x1 = max(0, x - pad_w)
+            y1 = max(0, y - pad_h)
+            x2 = min(w_frame, x + w + pad_w)
+            y2 = min(h_frame, y + h + pad_h)
+
+            face_img = frame[y1:y2, x1:x2]
+
+            if face_img.size == 0:
+                continue
+
+            # --- GRAYSCALE ---
             gray_face = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
-            gray_face = cv2.resize(gray_face, (FACE_SIZE, FACE_SIZE))
+
+            # --- RESIZE (DAHA NET) ---
+            gray_face = cv2.resize(
+                gray_face,
+                (FACE_SIZE, FACE_SIZE),
+                interpolation=cv2.INTER_CUBIC
+            )
+
+            # --- HAFİF SHARPEN ---
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+            gray_face = cv2.filter2D(gray_face, -1, kernel)
 
             count += 1
             img_path = user_dir / f"{user_name}_{count}.jpg"
-            cv2.imwrite(str(img_path), gray_face)
+
+            cv2.imwrite(
+                str(img_path),
+                gray_face,
+                [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY]
+            )
 
             print(f"{count}/{MAX_COUNT} kaydedildi")
-
             time.sleep(0.3)
 
     finally:

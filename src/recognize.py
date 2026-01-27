@@ -98,7 +98,7 @@ try:
             score_buffer.clear()
         else:
             print(
-                f"❌ Tanınmadı | Tahmin: {name} | "
+                f"❌ Tanınmadı bea | Tahmin: {name} | "
                 f"Benzerlik: %{round(avg_score, 1)}"
             )
 
