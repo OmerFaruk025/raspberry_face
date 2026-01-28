@@ -16,12 +16,13 @@ DATA_PATH.mkdir(parents=True, exist_ok=True)
 MAX_COUNT = 30
 FACE_SIZE = 200
 
-MIN_FACE_SIZE = 90
-ASPECT_MIN = 0.75
-ASPECT_MAX = 1.3
-CENTER_MARGIN = 0.35
-BBOX_JUMP_LIMIT = 40
-MOVE_THRESHOLD = 12
+# Daha esnek filtreler
+MIN_FACE_SIZE = 70        # çok küçük yüzleri alma
+ASPECT_MIN = 0.65         # en/boy oranı
+ASPECT_MAX = 1.4
+CENTER_MARGIN = 0.2       # frame kenarına yakınlığı gevşettik
+BBOX_JUMP_LIMIT = 100     # bbox çok zıplıyorsa alma
+MOVE_THRESHOLD = 5        # çok az hareketi alma
 
 # -----------------------------
 def get_registered_users():
@@ -48,7 +49,7 @@ def collect_data(user_name, mode="ekle"):
     last_bbox = None
 
     print(f"📸 Kayıt başlıyor: {user_name}")
-    time.sleep(1)
+    time.sleep(0.5)
 
     try:
         while count < MAX_COUNT:
@@ -92,13 +93,12 @@ def collect_data(user_name, mode="ekle"):
             last_bbox = bbox
 
             # -------------------------
-            # 🎯 İNSAN YÜZÜNE UYGUN FINAL CROP
-            # Çene az, alın + saç fazla
+            # 🎯 LBPH UYUMLU FINAL CROP
             # -------------------------
-            pad_left  = int(w * 0.12)
-            pad_right = int(w * 0.12)
-            pad_up    = int(h * 0.25)   # kafa üstü
-            pad_down  = int(h * 0.08)   # çene altı
+            pad_left  = int(w * 0.1)
+            pad_right = int(w * 0.1)
+            pad_up    = int(h * 0.15)
+            pad_down  = int(h * 0.05)
 
             x1 = max(0, x - pad_left)
             y1 = max(0, y - pad_up)
@@ -109,9 +109,6 @@ def collect_data(user_name, mode="ekle"):
             if face.size == 0:
                 continue
 
-            # -------------------------
-            # LBPH UYUMLU PREPROCESS
-            # -------------------------
             gray = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
             gray = cv2.resize(gray, (FACE_SIZE, FACE_SIZE), interpolation=cv2.INTER_AREA)
             gray = cv2.GaussianBlur(gray, (3, 3), 0)
@@ -121,7 +118,7 @@ def collect_data(user_name, mode="ekle"):
             cv2.imwrite(str(img_path), gray)
 
             print(f"{count}/{MAX_COUNT} kaydedildi")
-            time.sleep(0.35)
+            time.sleep(0.1)  # çok kısa bekleme
 
     finally:
         cam.release()
