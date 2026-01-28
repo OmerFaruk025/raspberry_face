@@ -5,126 +5,121 @@ from collections import deque
 from pathlib import Path
 from camera import Camera
 from face_detect import FaceDetector
+import queue
 import threading
+import os
 
 # -----------------------------
-# AYARLAR
+# RUN FUNCTION
 # -----------------------------
-CONFIDENCE_THRESHOLD = 65
-COOLDOWN_SECONDS = 2          # ⬅️ TANINDIKTAN SONRA BEKLEME
-CONF_BUFFER_SIZE = 5
-UNRECOGNIZED_PRINT_DELAY = 0.75  # ⬅️ 750 ms
+def run(FRAME_QUEUE, RUNNING, RUNNING_LOCK):
+    CONFIDENCE_THRESHOLD = 65
+    COOLDOWN_SECONDS = 2
+    CONF_BUFFER_SIZE = 5
+    UNRECOGNIZED_PRINT_DELAY = 0.75
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-MODEL_PATH = ROOT_DIR / "lbph_model.yml"
-LABEL_PATH = ROOT_DIR / "labels.txt"
-LOG_PATH   = ROOT_DIR / "hakan_fidan.csv"
+    # CSV path → raspberry_face/hakan_fidan.csv
+    LOG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "hakan_fidan.csv")
 
-# -----------------------------
-# MODEL & LABEL
-# -----------------------------
-recognizer = cv2.face.LBPHFaceRecognizer_create()
-recognizer.read(str(MODEL_PATH))
+    ROOT_DIR = Path(__file__).resolve().parent.parent
+    MODEL_PATH = ROOT_DIR / "lbph_model.yml"
+    LABEL_PATH = ROOT_DIR / "labels.txt"
 
-labels = {}
-with open(LABEL_PATH, "r", encoding="utf-8") as f:
-    for line in f:
-        idx, name = line.strip().split(":")
-        labels[int(idx)] = name
+    # -----------------------------
+    # MODEL & LABEL
+    recognizer = cv2.face.LBPHFaceRecognizer_create()
+    recognizer.read(str(MODEL_PATH))
 
-print(f"✅ Model yüklendi | Kişi: {len(labels)}")
+    labels = {}
+    with open(LABEL_PATH, "r", encoding="utf-8") as f:
+        for line in f:
+            idx, name = line.strip().split(":")
+            labels[int(idx)] = name
 
-# -----------------------------
-cam = Camera()
-detector = FaceDetector()
+    print(f"✅ Model yüklendi | Kişi: {len(labels)}")
 
-conf_buffer = deque(maxlen=CONF_BUFFER_SIZE)
-last_recognized_time = 0
-last_unrecognized_print = 0
-face_active = False
+    # -----------------------------
+    cam = Camera()
+    detector = FaceDetector()
+    conf_buffer = deque(maxlen=CONF_BUFFER_SIZE)
+    last_recognized_time = 0
+    last_unrecognized_print = 0
+    face_active = False
 
-print("📸 Kamera hazır, tanıma aktif")
+    print("📸 Kamera hazır, tanıma aktif")
 
-# -----------------------------
-# RUNNING FLAG (WEB PANEL KONTROLÜ İÇİN)
-RUNNING = True
-RUNNING_LOCK = threading.Lock()  # thread-safe kontrol
+    # -----------------------------
+    try:
+        while True:
+            with RUNNING_LOCK:
+                if not RUNNING[0]:
+                    time.sleep(0.1)
+                    continue
 
-# -----------------------------
-try:
-    while True:
-        with RUNNING_LOCK:
-            if not RUNNING:
-                # Sistem durdurulmuşsa beklemede kal
+            now = time.time()
+
+            if now - last_recognized_time < COOLDOWN_SECONDS:
                 time.sleep(0.1)
                 continue
 
-        now = time.time()
+            ret, frame = cam.read()
+            if not ret or frame is None:
+                time.sleep(0.05)
+                continue
 
-        if now - last_recognized_time < COOLDOWN_SECONDS:
-            time.sleep(0.15)
-            continue
+            # -------------------------
+            # Web için frame paylaş
+            if FRAME_QUEUE.full():
+                try:
+                    FRAME_QUEUE.get_nowait()
+                except queue.Empty:
+                    pass
+            FRAME_QUEUE.put(frame)
 
-        ret, frame = cam.read()
-        if not ret or frame is None:
-            time.sleep(0.1)
-            continue
+            face_img, _ = detector.detect_and_crop(frame, return_bbox=True)
+            if face_img is None:
+                face_active = False
+                conf_buffer.clear()
+                continue
 
-        face_img, _ = detector.detect_and_crop(frame, return_bbox=True)
-        if face_img is None:
-            face_active = False
-            conf_buffer.clear()
-            continue
+            if not face_active:
+                face_active = True
+                print("👤 Yüz algılandı")
 
-        if not face_active:
-            print("👤 Yüz algılandı")
-            face_active = True
+            # -------------------------
+            # PREPROCESS (train ile aynı)
+            gray = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
+            gray = cv2.resize(gray, (200, 200), interpolation=cv2.INTER_AREA)
+            gray = cv2.GaussianBlur(gray, (3, 3), 0)
 
-        # -------------------------
-        # PREPROCESS (TRAIN İLE AYNI)
-        # -------------------------
-        gray = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
-        gray = cv2.resize(gray, (200, 200), interpolation=cv2.INTER_AREA)
-        gray = cv2.GaussianBlur(gray, (3, 3), 0)
+            label_id, confidence = recognizer.predict(gray)
+            name = labels.get(label_id, "Bilinmeyen")
 
-        label_id, confidence = recognizer.predict(gray)
-        name = labels.get(label_id, "Bilinmeyen")
+            conf_buffer.append(confidence)
+            avg_conf = sum(conf_buffer) / len(conf_buffer)
 
-        conf_buffer.append(confidence)
-        avg_conf = sum(conf_buffer) / len(conf_buffer)
+            # -------------------------
+            # KARAR
+            if avg_conf <= CONFIDENCE_THRESHOLD:
+                print(f"✅ TANINDI → {name.upper()} | Confidence: {round(avg_conf,1)}")
+                timestamp = time.strftime("%d.%m.%Y %H:%M:%S")
+                with open(LOG_PATH, "a", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([timestamp, name])
 
-        # -------------------------
-        # KARAR
-        # -------------------------
-        if avg_conf <= CONFIDENCE_THRESHOLD:
-            print(
-                f"✅ TANINDI → {name.upper()} | "
-                f"Confidence: {round(avg_conf, 1)}"
-            )
+                last_recognized_time = time.time()
+                face_active = False
+                conf_buffer.clear()
+            else:
+                if now - last_unrecognized_print >= UNRECOGNIZED_PRINT_DELAY:
+                    print(f"❌ Tanınmadı | Tahmin: {name} | Confidence: {round(avg_conf,1)}")
+                    last_unrecognized_print = now
 
-            # ---- CSV LOG ----
-            timestamp = time.strftime("%d.%m.%Y %H:%M:%S")
-            with open(LOG_PATH, "a", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow([timestamp, name])
+            time.sleep(0.05)  # performans için biraz düşürdüm
 
-            last_recognized_time = time.time()
-            face_active = False
-            conf_buffer.clear()
+    except KeyboardInterrupt:
+        print("\n👋 Sistem kapatıldı")
 
-        else:
-            if now - last_unrecognized_print >= UNRECOGNIZED_PRINT_DELAY:
-                print(
-                    f"❌ Tanınmadı | Tahmin: {name} | "
-                    f"Confidence: {round(avg_conf, 1)}"
-                )
-                last_unrecognized_print = now
-
-        time.sleep(0.1)
-
-except KeyboardInterrupt:
-    print("\n👋 Sistem kapatıldı")
-
-finally:
-    cam.release()
-    print("📷 Kamera kapatıldı")
+    finally:
+        cam.release()
+        print("📷 Kamera kapatıldı")

@@ -1,25 +1,205 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <title>Face Recognition Control</title>
-    <link rel="stylesheet" href="{{ url_for('static_file', filename='style.css') }}">
+<meta charset="UTF-8">
+<title>FaceID Web Panel</title>
+<style>
+    body {
+        margin: 0;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #121212;
+        color: #f5f5f5;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100vh;
+    }
+
+    h1 {
+        margin: 20px 0 10px 0;
+        color: #00e676;
+        font-size: 2em;
+    }
+
+    h2 {
+        margin: 0 0 20px 0;
+        color: #b0bec5;
+    }
+
+    /* Yatay container */
+    .main-container {
+        display: flex;
+        flex-direction: row;
+        width: 90%;
+        max-width: 1000px;
+        height: 400px;
+        gap: 20px;
+    }
+
+    /* Kamera bölgesi */
+    .camera {
+        flex: 1;
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #1e1e1e;
+    }
+
+    .camera img {
+        max-width: 100%;
+        max-height: 100%;
+        border-radius: 10px;
+    }
+
+    /* Log bölgesi */
+    .logs {
+    flex: 1;
+    background-color: #1e1e1e;
+    border-radius: 12px;
+    padding: 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    margin: auto;
+}
+
+
+
+    .logs h3 {
+        margin-top: 0;
+        color: #c7c8c7;
+        text-align: center;
+    }
+
+    #logs {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    #logs li {
+        background-color: #292929;
+        margin: 4px 0;
+        padding: 8px 12px;
+        border-left: 4px solid #a6a7a6;
+        border-radius: 5px;
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.9em;
+    }
+
+    #logs li.new {
+        border-left-color: #ffeb3b;
+        background-color: #333;
+        animation: highlight 1s ease;
+    }
+
+    @keyframes highlight {
+        0% { background-color: #555; }
+        100% { background-color: #333; }
+    }
+
+    /* Butonlar */
+    .controls {
+        margin-top: 20px;
+    }
+
+    .controls a {
+        display: inline-block;
+        padding: 10px 20px;
+        margin: 0 10px;
+        background-color: #cbc9c9;
+        color: #121212;
+        font-weight: bold;
+        text-decoration: none;
+        border-radius: 8px;
+        transition: 0.3s;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    }
+
+    .controls a:hover {
+        background-color: #b2b3b2;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 8px rgba(0,0,0,0.4);
+    }
+
+    /* Responsive */
+    @media(max-width: 800px){
+        .main-container {
+            flex-direction: column;
+            height: auto;
+        }
+        .camera, .logs {
+            height: 300px;
+        }
+    }
+</style>
 </head>
 <body>
-    <div class="container">
-        <h1>📸 Face Recognition Control</h1>
-        <div class="status-container">
-            <span>Durum:</span>
-            <span id="status" class="{{ 'running' if status=='Çalışıyor' else 'stopped' }}">{{ status }}</span>
-        </div>
-        <div class="button-container">
-            <button id="startBtn" onclick="sendCommand('start')">Başlat</button>
-            <button id="stopBtn" onclick="sendCommand('stop')">Durdur</button>
-        </div>
-        <div class="log-container" id="log">
-            <p>Log alanı</p>
-        </div>
+
+<h1>FaceID Web Panel</h1>
+<h2>Status: <span id="status">{{ status }}</span></h2>
+
+<div class="main-container">
+    <div class="camera">
+        <img src="/video_feed" alt="Canlı Kamera">
     </div>
-    <script src="{{ url_for('static_file', filename='script.js') }}"></script>
+    <div class="logs">
+        <h3>Son Loglar</h3>
+        <ul id="logs"></ul>
+    </div>
+</div>
+
+<div class="controls">
+    <a href="/start">START</a>
+    <a href="/stop">STOP</a>
+</div>
+
+<script>
+let lastLogNames = [];
+
+// Logları çek
+async function fetchLogs() {
+    try {
+        const res = await fetch("/logs");
+        const data = await res.json();
+        const ul = document.getElementById("logs");
+        ul.innerHTML = "";
+
+        data.forEach(log => {
+            const li = document.createElement("li");
+            li.textContent = `${log.time} - ${log.name}`;
+            if (!lastLogNames.includes(log.name)) {
+                li.classList.add("new");
+            }
+            ul.appendChild(li);
+        });
+
+        lastLogNames = data.map(l => l.name);
+    } catch(e) { console.error("Log çekilemedi:", e); }
+}
+
+// Status update
+async function fetchStatus(){
+    try{
+        const res = await fetch("/");
+        const parser = new DOMParser();
+        const html = await res.text();
+        const doc = parser.parseFromString(html,'text/html');
+        const newStatus = doc.querySelector('#status').textContent;
+        document.getElementById('status').textContent = newStatus;
+    } catch(e) { console.error("Status çekilemedi:", e); }
+}
+
+fetchLogs();
+setInterval(fetchLogs, 2000);
+fetchStatus();
+setInterval(fetchStatus, 1000);
+
+</script>
 </body>
 </html>

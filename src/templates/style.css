@@ -15,18 +15,16 @@ body {
     border-radius: 15px;
     box-shadow: 0 0 20px rgba(0,0,0,0.6);
     text-align: center;
-    width: 350px;
+    width: 400px;
 }
 
 h1 { margin-bottom: 20px; }
 
 .status-container { margin-bottom: 20px; font-size: 18px; }
-
 #status.running { color: #4caf50; font-weight: bold; }
 #status.stopped { color: #f44336; font-weight: bold; }
 
 .button-container { margin-bottom: 20px; }
-
 button {
     padding: 10px 25px;
     margin: 0 10px;
@@ -37,20 +35,28 @@ button {
     font-weight: bold;
     transition: all 0.3s ease;
 }
-
 #startBtn { background-color: #4caf50; color: #fff; }
 #startBtn:hover { background-color: #45a049; }
-
 #stopBtn { background-color: #f44336; color: #fff; }
 #stopBtn:hover { background-color: #e53935; }
+
+.camera-container {
+    margin-bottom: 20px;
+}
+.camera-container img {
+    width: 100%;
+    border-radius: 10px;
+    border: 2px solid #4caf50;
+}
 
 .log-container {
     background-color: #2b2b2b;
     padding: 15px;
     border-radius: 10px;
     height: 150px;
-    overflow-y: auto;
+    overflow-y: hidden; /* scrollbar kaldırıldı */
     font-size: 14px;
+    font-weight: bold;
     text-align: left;
 }
 

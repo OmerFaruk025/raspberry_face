@@ -1,88 +1,99 @@
-from flask import Flask, render_template, send_from_directory, redirect, url_for, jsonify
-import subprocess, os, sys, csv, logging
+from flask import Flask, render_template, redirect, url_for, jsonify, Response, send_from_directory
+import threading, queue, time, os
+import logging
 
-# -------------------------
-# Temel ayarlar
-# -------------------------
-BASE_DIR = os.path.dirname(__file__)                  # src klasörü
-TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")  # src/templates
-CSV_LOG_PATH = os.path.join(BASE_DIR, "..", "hakan_fidan.csv")  # kökteki CSV
+app = Flask(__name__)
 
-app = Flask(__name__, template_folder=TEMPLATES_DIR)
-
-# Gereksiz GET/POST loglarını kapat
+# -----------------------------
+# FLASK LOGLARI KAPAT (request logları)
 log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR)
+log.setLevel(logging.ERROR)  # sadece hata loglarını göster
 
-recognize_process = None
+# -----------------------------
+# PATHLER
+BASE_DIR = os.path.dirname(__file__)
+CSV_LOG_PATH = os.path.join(os.path.dirname(BASE_DIR), "hakan_fidan.csv")  # raspberry_face/hakan_fidan.csv
 
-# -------------------------
-# Yüz tanıma işlemi
-# -------------------------
-def start_recognize():
-    global recognize_process
-    if recognize_process is None or recognize_process.poll() is not None:
-        recognize_process = subprocess.Popen(
-            [sys.executable, os.path.join(BASE_DIR, "recognize.py")]
-        )
+# -----------------------------
+# GLOBALS
+FRAME_QUEUE = queue.Queue(maxsize=1)
+RUNNING = [False]  # mutable list
+RUNNING_LOCK = threading.Lock()
+recognize_thread = None
 
-def stop_recognize():
-    global recognize_process
-    if recognize_process and recognize_process.poll() is None:
-        recognize_process.terminate()
-        try:
-            recognize_process.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            recognize_process.kill()
-        recognize_process = None
+# -----------------------------
+# Recognize.py thread
+def run_recognize():
+    import recognize
+    recognize.run(FRAME_QUEUE, RUNNING, RUNNING_LOCK)
 
-# -------------------------
-# CSS / JS dosyalarını servis et
-# -------------------------
+# -----------------------------
+# Static dosyalar (css/js)
 @app.route('/assets/<path:filename>')
 def static_file(filename):
-    return send_from_directory(TEMPLATES_DIR, filename)
+    return send_from_directory(os.path.join(BASE_DIR, 'templates'), filename)
 
-# -------------------------
+# -----------------------------
 # Logları JSON olarak döndür
-# -------------------------
 @app.route("/logs")
 def get_logs():
     logs = []
     if os.path.exists(CSV_LOG_PATH):
-        try:
-            with open(CSV_LOG_PATH, "r", encoding="utf-8") as f:
-                reader = csv.reader(f)
-                rows = [row for row in reader if row and len(row) >= 2]
-                for row in rows[-20:]:
-                    logs.append({"time": row[0], "name": row[1]})
-        except Exception as e:
-            logs.append({"time": "", "name": f"Hata: {e}"})
+        with open(CSV_LOG_PATH, "r", encoding="utf-8") as f:
+            reader = f.read().splitlines()
+            for row in reader[-5:]:
+                parts = row.split(",")
+                if len(parts) >= 2:
+                    time_str = parts[0].split(" ")[1]
+                    logs.append({"time": time_str, "name": parts[1]})
     return jsonify(logs)
 
-# -------------------------
+# -----------------------------
 # Ana sayfa
-# -------------------------
 @app.route("/")
 def index():
-    status = "Çalışıyor" if recognize_process and recognize_process.poll() is None else "Durduruldu"
+    status = "Çalışıyor" if RUNNING[0] else "Durduruldu"
     return render_template("index.html", status=status)
 
-# -------------------------
+# -----------------------------
 # Start / Stop
-# -------------------------
 @app.route("/start")
 def start():
-    start_recognize()
+    global recognize_thread
+    with RUNNING_LOCK:
+        if not RUNNING[0]:
+            RUNNING[0] = True
+            if recognize_thread is None or not recognize_thread.is_alive():
+                recognize_thread = threading.Thread(target=run_recognize, daemon=True)
+                recognize_thread.start()
     return redirect(url_for("index"))
 
 @app.route("/stop")
 def stop():
-    stop_recognize()
+    with RUNNING_LOCK:
+        RUNNING[0] = False
     return redirect(url_for("index"))
 
-# -------------------------
-# Uygulama başlat
-# -------------------------
+# -----------------------------
+# Canlı video stream
+def gen_frames():
+    while True:
+        if not FRAME_QUEUE.empty():
+            frame = FRAME_QUEUE.get()
+            import cv2
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame_bytes = buffer.tobytes()
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        else:
+            time.sleep(0.05)
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+# -----------------------------
+# MAIN
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    # debug=False + use_reloader=False → duplicate logları önler
+    app.run(host="0.0.0.0", port=5000, debug=False, use_reloader=False)

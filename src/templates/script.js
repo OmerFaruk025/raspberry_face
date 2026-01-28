@@ -20,13 +20,13 @@ async function updateStatus() {
         const logContainer = document.getElementById('log');
 
         logContainer.innerHTML = "";
-        data.reverse().forEach(item => {
+        data.forEach(item => {
             const p = document.createElement("p");
-            p.textContent = `[${item.time}] ${item.name}`;
+            p.textContent = `${item.name}`;
             logContainer.appendChild(p);
         });
 
-        // Scroll en alta
+        // Scroll en alta (artık scrollbar yok ama içerik altta başlar)
         logContainer.scrollTop = logContainer.scrollHeight;
     } catch (err) {
         console.error("Log çekme hatası:", err);
