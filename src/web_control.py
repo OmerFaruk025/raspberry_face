@@ -2,12 +2,11 @@ from flask import Flask, render_template, redirect, url_for, jsonify, Response, 
 import threading, queue, time, os
 import logging
 
-app = Flask(__name__)
-
 # -----------------------------
-# FLASK LOGLARI KAPAT (request logları)
+# Flask setup
+app = Flask(__name__)
 log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR)  # sadece hata loglarını göster
+log.setLevel(logging.ERROR)  # request loglarını kapat
 
 # -----------------------------
 # PATHLER
@@ -18,14 +17,13 @@ CSV_LOG_PATH = os.path.join(os.path.dirname(BASE_DIR), "hakan_fidan.csv")  # ras
 # GLOBALS
 FRAME_QUEUE = queue.Queue(maxsize=1)
 RUNNING = [False]  # mutable list
-RUNNING_LOCK = threading.Lock()
 recognize_thread = None
 
 # -----------------------------
 # Recognize.py thread
 def run_recognize():
     import recognize
-    recognize.run(FRAME_QUEUE, RUNNING, RUNNING_LOCK)
+    recognize.run(FRAME_QUEUE, RUNNING)  # sadece frame_queue ve running gönderiyoruz
 
 # -----------------------------
 # Static dosyalar (css/js)
@@ -60,18 +58,16 @@ def index():
 @app.route("/start")
 def start():
     global recognize_thread
-    with RUNNING_LOCK:
-        if not RUNNING[0]:
-            RUNNING[0] = True
-            if recognize_thread is None or not recognize_thread.is_alive():
-                recognize_thread = threading.Thread(target=run_recognize, daemon=True)
-                recognize_thread.start()
+    if not RUNNING[0]:
+        RUNNING[0] = True
+        if recognize_thread is None or not recognize_thread.is_alive():
+            recognize_thread = threading.Thread(target=run_recognize, daemon=True)
+            recognize_thread.start()
     return redirect(url_for("index"))
 
 @app.route("/stop")
 def stop():
-    with RUNNING_LOCK:
-        RUNNING[0] = False
+    RUNNING[0] = False
     return redirect(url_for("index"))
 
 # -----------------------------
