@@ -8,4 +8,5 @@ labels.txt
 
 # Log / CSV / JPG dosyaları
 *.csv
-*.jpg
+deneme.jpg
+son_durum.jpg
