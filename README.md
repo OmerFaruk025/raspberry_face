@@ -38,14 +38,14 @@ Sistem kamera üzerinden yüz algılar, tanıma işlemini gerçekleştirir ve ta
 ---------
 
 2-) Kaydedilen fotoğrafları taratmak gerekiyor. Bunun için "train_lbph.py" dosyası çalıştırılmalıdır.
-- Ekstra yapmanız gereken bir işlem yok. bu dosya ana dosyanın kök dizisine yml dosyası ve label.txt dosyası oluşturacaktır.
+- Ekstra yapmanız gereken bir işlem yok. bu dosya ana dosyanın kök dizisine .yml dosyası ve label.txt dosyası oluşturacaktır.
 - Bu dosya data klasöründeki tüm kişileri işleyip sadece sağlıklı fotoğrafları tarayacaktır.
-- BU İŞLEMİ HER SEFERİNDE YAPMANIZA GEREK YOK. YENİ KİŞİ KAYDETTİKTEN SONRA VEYA GÜNCELLEDİKTEN SONRA ÇALIŞTIRMANIZ GEREKİR AKSİ TAKDİRDE ESKİ FOTOĞRFLAR BAZ ALINIR.
+- BU İŞLEMİ HER SEFERİNDE YAPMANIZA GEREK YOK. YENİ KİŞİ KAYDETTİKTEN SONRA VEYA GÜNCELLEDİKTEN SONRA ÇALIŞTIRMANIZ GEREKİR AKSİ TAKDİRDE ESKİ FOTOĞRAFLAR BAZ ALINIR.
 ---------
 
-3-) Önceki iki işlemi yapmayı başardıysanız eğer artık "recognize.py" dosyasını çalıştırarak anlık olarak Raspberry kamerası üzeridnen tanıma yapabilirsiniz.
+3-) Önceki iki işlemi yapmayı başardıysanız eğer artık "recognize.py" dosyasını çalıştırarak anlık olarak Raspberry kamerası üzerinden tanıma yapabilirsiniz.
 - Bu dosya tanımış olduğu kişiyi .csv dosyasına kaydeder. Bu sayede kimlerin yüzünü tanıttığına dair detaylı bilgi sahibi olabilirsiniz.
-- Eğer uzaktan başlatmak istiyorsanız lütfen bu dosya yerine 4. aşamadaki .py dosyasını çalıştırın.
+- Eğer uzaktan başlatmak veya kontrol etmek istiyorsanız lütfen bu dosya yerine 4. aşamadaki .py dosyasını çalıştırın.
 ---------
 
 4-) Uygulamayı dışarıdan kontrol etmek isterseniz ve kamerayı canlı olarak görmek isterseniz "web_controller.py" dosyasını çalıştırmanız gerekmekte.
@@ -55,3 +55,6 @@ Sistem kamera üzerinden yüz algılar, tanıma işlemini gerçekleştirir ve ta
 - !!!!!!!!!Modem arayüzünden Pi nin ip adresini öğrenerek url kısmına şunu yazmanız gerekiyor. "ip_adresiniz:5000"!!!!!!!!
 - Bu sayede artık web arayüzüne girebiliyor olmalısınız.
 ---------
+
+## License
+This project is not open-source. All rights reserved.
