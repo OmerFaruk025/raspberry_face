@@ -5,6 +5,7 @@ from collections import deque
 from pathlib import Path
 from camera import Camera
 from face_detect import FaceDetector
+import RPi.GPIO as GPIO
 
 # -----------------------------
 # AYARLAR
@@ -13,10 +14,20 @@ COOLDOWN_SECONDS = 2
 CONF_BUFFER_SIZE = 5
 UNRECOGNIZED_PRINT_DELAY = 0.75
 
+# Röle ayarları
+RELAY_PIN = 17          # S pinine bağlı GPIO
+RELAY_OPEN_TIME = 1.0   # saniye
+
 ROOT_DIR = Path(__file__).resolve().parent.parent
 MODEL_PATH = ROOT_DIR / "lbph_model.yml"
 LABEL_PATH = ROOT_DIR / "labels.txt"
 LOG_PATH   = ROOT_DIR / "hakan_fidan.csv"
+
+# -----------------------------
+# GPIO SETUP
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(RELAY_PIN, GPIO.OUT)
+GPIO.output(RELAY_PIN, GPIO.HIGH)  # röle kapalı başlasın
 
 # -----------------------------
 # MODEL & LABEL
@@ -45,8 +56,14 @@ print("📸 Kamera hazır, tanıma aktif")
 
 # -----------------------------
 # RUNNING FLAG (web için)
-RUNNING = [True]  # standalone modda True
-FRAME_QUEUE = None  # web panel için kullanılacak
+RUNNING = [True]   # standalone modda True
+FRAME_QUEUE = None # web panel için kullanılacak
+
+# -----------------------------
+def open_door():
+    GPIO.output(RELAY_PIN, GPIO.LOW)
+    time.sleep(RELAY_OPEN_TIME)
+    GPIO.output(RELAY_PIN, GPIO.HIGH)
 
 # -----------------------------
 def run(frame_queue=None, running=None):
@@ -110,11 +127,17 @@ def run(frame_queue=None, running=None):
         if avg_conf <= CONFIDENCE_THRESHOLD:
             print(f"✅ TANINDI → {name.upper()} | Confidence: {round(avg_conf,1)}")
             timestamp = time.strftime("%d.%m.%Y %H:%M:%S")
+
             with open(LOG_PATH, "a", newline="", encoding="utf-8") as f:
-                csv.writer(f).writerow([timestamp,name])
+                csv.writer(f).writerow([timestamp, name])
+
+            # 🔓 KAPIYI AÇ
+            open_door()
+
             last_recognized_time = time.time()
             face_active = False
             conf_buffer.clear()
+
         else:
             if now - last_unrecognized_print >= UNRECOGNIZED_PRINT_DELAY:
                 print(f"❌ Tanınmadı | Tahmin: {name} | Confidence: {round(avg_conf,1)}")
@@ -125,4 +148,9 @@ def run(frame_queue=None, running=None):
 # -----------------------------
 # Standalone mod
 if __name__ == "__main__":
-    run()
+    try:
+        run()
+    finally:
+        GPIO.output(RELAY_PIN, GPIO.HIGH)
+        GPIO.cleanup()
+        print("GPIO temizlendi, çıkılıyor.")
